@@ -1,4 +1,5 @@
 {
-  "name": "採用管理",
-  "icon": "briefcase"
+  "name": "タスク管理ワークスペース",
+  "icon": "briefcase",
+  "unassignedTaskCount": 2
 }

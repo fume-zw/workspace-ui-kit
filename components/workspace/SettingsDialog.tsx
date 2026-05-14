@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
-import { type Department } from "@/lib/schema";
+import { type Project } from "@/lib/schema";
 import { DeleteConfirmDialog } from "@/components/workspace/DeleteConfirmDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,27 +25,27 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
 type SettingsDialogContentProps = {
-  departments: Department[];
-  onAddDepartment: (name: string) => void;
-  onDeleteDepartment: (deptId: string) => void;
+  projects: Project[];
+  onAddProject: (name: string) => void;
+  onDeleteProject: (projectId: string) => void;
 };
 
 export function SettingsDialogContent({
-  departments,
-  onAddDepartment,
-  onDeleteDepartment,
+  projects,
+  onAddProject,
+  onDeleteProject,
 }: SettingsDialogContentProps) {
-  const [newDeptName, setNewDeptName] = useState("");
-  const [deleteDeptTarget, setDeleteDeptTarget] = useState<{
+  const [newProjectName, setNewProjectName] = useState("");
+  const [deleteProjectTarget, setDeleteProjectTarget] = useState<{
     id: string;
     name: string;
   } | null>(null);
 
-  const handleAddDept = () => {
-    const trimmed = newDeptName.trim();
+  const handleAddProject = () => {
+    const trimmed = newProjectName.trim();
     if (!trimmed) return;
-    onAddDepartment(trimmed);
-    setNewDeptName("");
+    onAddProject(trimmed);
+    setNewProjectName("");
   };
 
   return (
@@ -54,58 +54,61 @@ export function SettingsDialogContent({
         <DialogHeader>
           <DialogTitle>ワークスペース設定</DialogTitle>
           <DialogDescription>
-            事業部やワークスペース名を管理します
+            プロジェクトやワークスペース名を管理します
           </DialogDescription>
         </DialogHeader>
 
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="settings-new-dept">事業部</FieldLabel>
+            <FieldLabel htmlFor="settings-new-project">プロジェクト</FieldLabel>
             <ScrollArea className="max-h-48">
               <div className="divide-y divide-border rounded-lg border border-border">
-                {departments.map((dept) => (
+                {projects.map((project) => (
                   <div
-                    key={dept.id}
+                    key={project.id}
                     className="flex items-center justify-between px-3 py-2"
                   >
-                    <span className="text-sm">{dept.name}</span>
+                    <span className="text-sm">{project.name}</span>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-xs"
                       onClick={() =>
-                        setDeleteDeptTarget({ id: dept.id, name: dept.name })
+                        setDeleteProjectTarget({
+                          id: project.id,
+                          name: project.name,
+                        })
                       }
-                      aria-label={`${dept.name} を削除`}
+                      aria-label={`${project.name} を削除`}
                       className="text-muted-foreground hover:text-destructive"
                     >
                       <Trash2 />
                     </Button>
                   </div>
                 ))}
-                {departments.length === 0 && (
+                {projects.length === 0 && (
                   <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                    事業部がありません
+                    プロジェクトがありません
                   </div>
                 )}
               </div>
             </ScrollArea>
             <InputGroup>
               <InputGroupInput
-                id="settings-new-dept"
-                placeholder="新しい事業部名"
-                value={newDeptName}
-                onChange={(e) => setNewDeptName(e.target.value)}
+                id="settings-new-project"
+                placeholder="新しいプロジェクト名"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") handleAddDept();
+                  if (e.key === "Enter") handleAddProject();
                 }}
               />
               <InputGroupAddon align="inline-end">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleAddDept}
-                  disabled={!newDeptName.trim()}
+                  onClick={handleAddProject}
+                  disabled={!newProjectName.trim()}
                 >
                   <Plus data-icon="inline-start" />
                   追加
@@ -120,7 +123,10 @@ export function SettingsDialogContent({
             <FieldLabel htmlFor="settings-workspace-name">
               ワークスペース名
             </FieldLabel>
-            <Input id="settings-workspace-name" defaultValue="採用管理" />
+            <Input
+              id="settings-workspace-name"
+              defaultValue="タスク管理ワークスペース"
+            />
           </Field>
         </FieldGroup>
 
@@ -130,16 +136,16 @@ export function SettingsDialogContent({
       </DialogContent>
 
       <DeleteConfirmDialog
-        open={deleteDeptTarget !== null}
+        open={deleteProjectTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteDeptTarget(null);
+          if (!open) setDeleteProjectTarget(null);
         }}
-        title="事業部を削除しますか？"
-        itemName={deleteDeptTarget?.name ?? ""}
+        title="プロジェクトを削除しますか？"
+        itemName={deleteProjectTarget?.name ?? ""}
         onConfirm={() => {
-          if (deleteDeptTarget) {
-            onDeleteDepartment(deleteDeptTarget.id);
-            setDeleteDeptTarget(null);
+          if (deleteProjectTarget) {
+            onDeleteProject(deleteProjectTarget.id);
+            setDeleteProjectTarget(null);
           }
         }}
       />

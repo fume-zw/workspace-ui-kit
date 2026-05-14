@@ -1,0 +1,20 @@
+[
+  {
+    "id": "proj-system",
+    "name": "システム",
+    "sortOrder": 1,
+    "taskCount": 3
+  },
+  {
+    "id": "proj-inspection",
+    "name": "検査",
+    "sortOrder": 2,
+    "taskCount": 2
+  },
+  {
+    "id": "proj-other",
+    "name": "その他",
+    "sortOrder": 3,
+    "taskCount": 1
+  }
+]

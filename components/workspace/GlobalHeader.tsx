@@ -1,18 +1,12 @@
 "use client";
 
-import { Settings } from "lucide-react";
+import { Search, Settings } from "lucide-react";
 
-import { type Department } from "@/lib/schema";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { type Project } from "@/lib/schema";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Tooltip,
   TooltipContent,
@@ -21,44 +15,47 @@ import {
 import { SettingsDialogContent } from "@/components/workspace/SettingsDialog";
 
 type GlobalHeaderProps = {
-  departmentTitle: string;
-  positionTitle: string;
-  candidateName: string;
-  departments: Department[];
-  onAddDepartment: (name: string) => void;
-  onDeleteDepartment: (deptId: string) => void;
+  searchQuery: string;
+  onSearchQueryChange: (query: string) => void;
+  projects: Project[];
+  onAddProject: (name: string) => void;
+  onDeleteProject: (projectId: string) => void;
 };
 
 export function GlobalHeader({
-  departmentTitle,
-  positionTitle,
-  candidateName,
-  departments,
-  onAddDepartment,
-  onDeleteDepartment,
+  searchQuery,
+  onSearchQueryChange,
+  projects,
+  onAddProject,
+  onDeleteProject,
 }: GlobalHeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
-      <Breadcrumb
-        className="min-w-0 flex-1 overflow-hidden"
-        aria-label="パンくず"
+      <form
+        className="min-w-0 flex-1"
+        role="search"
+        onSubmit={(event) => event.preventDefault()}
       >
-        <BreadcrumbList className="flex-nowrap text-[11px]">
-          <BreadcrumbItem className="shrink-0">
-            <BreadcrumbLink>{departmentTitle}</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem className="shrink-0">
-            <BreadcrumbLink>{positionTitle}</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem className="min-w-0">
-            <BreadcrumbPage className="truncate font-medium">
-              {candidateName}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="workspace-task-search" className="sr-only">
+            タスク・サブタスク・サブステータスを検索
+          </Label>
+          <div className="relative flex items-center">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-2.5 size-4 text-muted-foreground"
+            />
+            <Input
+              id="workspace-task-search"
+              type="search"
+              value={searchQuery}
+              onChange={(event) => onSearchQueryChange(event.target.value)}
+              placeholder="タスク・サブタスク・サブステータスを検索"
+              className="pl-8"
+            />
+          </div>
+        </div>
+      </form>
 
       <Dialog>
         <Tooltip>
@@ -81,9 +78,9 @@ export function GlobalHeader({
           <TooltipContent side="bottom">ワークスペース設定</TooltipContent>
         </Tooltip>
         <SettingsDialogContent
-          departments={departments}
-          onAddDepartment={onAddDepartment}
-          onDeleteDepartment={onDeleteDepartment}
+          projects={projects}
+          onAddProject={onAddProject}
+          onDeleteProject={onDeleteProject}
         />
       </Dialog>
     </header>

@@ -1,0 +1,66 @@
+[
+  {
+    "id": "task-1",
+    "title": "トップページの文言を更新する",
+    "status": "対応中",
+    "subStatus": "採用メッセージのトーンを人事と確認中。",
+    "projectId": "proj-system",
+    "dueDate": "2026-05-20"
+  },
+  {
+    "id": "task-2",
+    "title": "応募フォームの必須項目を見直す",
+    "status": "未着手",
+    "subStatus": null,
+    "projectId": "proj-system",
+    "dueDate": "2026-05-25"
+  },
+  {
+    "id": "task-3",
+    "title": "採用イベントのバナー差し替え",
+    "status": "完了",
+    "subStatus": "差し替え後の表示確認まで完了。",
+    "projectId": "proj-system",
+    "dueDate": null
+  },
+  {
+    "id": "task-4",
+    "title": "日次レポートの送信先を確認する",
+    "status": "未着手",
+    "subStatus": null,
+    "projectId": "proj-inspection",
+    "dueDate": "2026-05-18"
+  },
+  {
+    "id": "task-5",
+    "title": "Slack 通知の文面を整える",
+    "status": "対応中",
+    "subStatus": "通知頻度は週次で再検討予定。",
+    "projectId": "proj-inspection",
+    "dueDate": null
+  },
+  {
+    "id": "task-6",
+    "title": "オンボーディング資料の目次を作る",
+    "status": "未着手",
+    "subStatus": null,
+    "projectId": "proj-other",
+    "dueDate": "2026-05-30"
+  },
+  {
+    "id": "task-7",
+    "title": "先週分の未入力タスクを棚卸しする",
+    "status": "未着手",
+    "subStatus": null,
+    "projectId": null,
+    "dueDate": "2026-05-16"
+  },
+  {
+    "id": "task-8",
+    "title": "プロジェクト未割当のメモ整理",
+    "status": "対応中",
+    "subStatus": "未割当の理由をメモ欄に残す。",
+    "projectId": null,
+    "dueDate": null
+  }
+]

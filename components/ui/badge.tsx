@@ -19,6 +19,12 @@ const badgeVariants = cva(
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        "task-pending":
+          "border-task-status-pending/25 bg-task-status-pending-soft text-task-status-pending [a]:hover:bg-task-status-pending-soft/80",
+        "task-active":
+          "border-task-status-active/25 bg-task-status-active-soft text-task-status-active [a]:hover:bg-task-status-active-soft/80",
+        "task-done":
+          "border-task-status-done/25 bg-task-status-done-soft text-task-status-done [a]:hover:bg-task-status-done-soft/80",
       },
       size: {
         default: "h-5 px-2 text-xs",

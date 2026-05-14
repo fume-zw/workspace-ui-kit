@@ -9,7 +9,53 @@
 
 import { z } from "zod";
 
-// ===== Pane 1: 部署 → ポジション 階層 =====
+// ===== Pane 1: タスク管理プロジェクト（フラット） =====
+
+/** Pane 1「未割当」行の仮想 ID。DB 上は `project_id IS NULL` に対応する。 */
+export const UNASSIGNED_PROJECT_ID = "__unassigned__" as const;
+
+/** プロジェクト 1 件。Pane 1 のフラット Sidebar に表示する単位。 */
+export const projectSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  sortOrder: z.number(),
+  taskCount: z.number(),
+});
+export type Project = z.infer<typeof projectSchema>;
+
+// ===== Pane 2: タスク一覧 =====
+
+/** タスクの進捗。連携先 Supabase `tasks.status` と同じ三値。 */
+export const taskStatusSchema = z.enum(["未着手", "対応中", "完了"]);
+export type TaskStatus = z.infer<typeof taskStatusSchema>;
+
+/** タスク 1 件。Pane 2 の行と Pane 3 ハブの元データ。 */
+export const taskSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  status: taskStatusSchema,
+  subStatus: z.string().nullable(),
+  projectId: z.string().nullable(),
+  dueDate: z.string().nullable(),
+});
+export type Task = z.infer<typeof taskSchema>;
+
+/** Pane 2 のステータスグループ表示順。 */
+export const TASK_STATUS_ORDER = taskStatusSchema.options;
+
+// ===== Pane 4: サブタスク =====
+
+/** サブタスク 1 行。Pane 4 のチェックリスト行の元データ。 */
+export const subtaskSchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  title: z.string(),
+  isDone: z.boolean(),
+  sortOrder: z.number(),
+});
+export type Subtask = z.infer<typeof subtaskSchema>;
+
+// ===== Pane 1: 部署 → ポジション 階層（採用サンプル・Pane 3〜4 検証用に維持） =====
 
 /** 部署配下の単一ポジション。Pane 1 の階層 Sidebar に表示する単位。 */
 export const positionSchema = z.object({
@@ -174,11 +220,15 @@ export type Candidate = z.infer<typeof candidateSchema>;
 
 // ===== JSON 全体用スキーマ =====
 
+export const projectsSchema = z.array(projectSchema);
+export const tasksSchema = z.array(taskSchema);
+export const subtasksSchema = z.array(subtaskSchema);
 export const departmentsSchema = z.array(departmentSchema);
 export const candidatesSchema = z.array(candidateSchema);
 export const workspaceSchema = z.object({
   name: z.string(),
   icon: z.string(),
+  unassignedTaskCount: z.number().default(0),
 });
 
 // ===== Pane 4 の表示状態（SelectedDetail） =====
@@ -220,3 +270,10 @@ export type CandidateRow = {
 export type Group =
   | { kind: "stage"; stage: StageKey; label: string; items: CandidateRow[] }
   | { kind: "archived"; label: string; items: CandidateRow[] };
+
+/** Pane 2 のステータス別グループ。`TaskListPane` に渡す表示単位。 */
+export type TaskGroup = {
+  status: TaskStatus;
+  label: string;
+  items: Task[];
+};

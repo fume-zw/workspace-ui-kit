@@ -3,14 +3,35 @@ import { describe, it, expect } from "vitest";
 import {
   candidatesSchema,
   departmentsSchema,
+  projectsSchema,
+  subtasksSchema,
+  tasksSchema,
   workspaceSchema,
 } from "@/lib/schema";
 
 import positionsData from "@/data/positions.json";
+import projectsData from "@/data/projects.json";
+import tasksData from "@/data/tasks.json";
+import subtasksData from "@/data/subtasks.json";
 import candidatesData from "@/data/candidates.json";
 import workspaceData from "@/data/workspace.json";
 
 describe("data/*.json schema validation", () => {
+  it("data/tasks.json は tasksSchema を満たす", () => {
+    const result = tasksSchema.safeParse(tasksData);
+    expect(result.success).toBe(true);
+  });
+
+  it("data/subtasks.json は subtasksSchema を満たす", () => {
+    const result = subtasksSchema.safeParse(subtasksData);
+    expect(result.success).toBe(true);
+  });
+
+  it("data/projects.json は projectsSchema を満たす", () => {
+    const result = projectsSchema.safeParse(projectsData);
+    expect(result.success).toBe(true);
+  });
+
   it("data/positions.json は departmentsSchema を満たす", () => {
     const result = departmentsSchema.safeParse(positionsData);
     expect(result.success).toBe(true);
@@ -28,6 +49,11 @@ describe("data/*.json schema validation", () => {
 });
 
 describe("schema rejects invalid data", () => {
+  it("projectsSchema は配列を期待する", () => {
+    expect(projectsSchema.safeParse({}).success).toBe(false);
+    expect(projectsSchema.safeParse(null).success).toBe(false);
+  });
+
   it("departmentsSchema は配列を期待する", () => {
     expect(departmentsSchema.safeParse({}).success).toBe(false);
     expect(departmentsSchema.safeParse(null).success).toBe(false);
