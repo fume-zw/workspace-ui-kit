@@ -126,6 +126,19 @@ export function Workspace({
     setSelectedTaskId(id);
   }, []);
 
+  /** Pane 4 アジェンダから選ぶときは一覧・詳細が同じタスクになるようプロジェクトと検索を合わせる */
+  const selectTaskFromSchedule = useCallback(
+    (taskId: string) => {
+      const task = tasks.find((t) => t.id === taskId);
+      setSelectedTaskId(taskId);
+      if (task) {
+        setSelectedProjectId(task.projectId ?? UNASSIGNED_PROJECT_ID);
+      }
+      setSearchQuery("");
+    },
+    [tasks],
+  );
+
   const addTask = useCallback((input: NewTaskInput) => {
     const title = input.title.trim();
     if (!title) return;
@@ -359,7 +372,7 @@ export function Workspace({
             taskDueDateCounts={taskDueDateCounts}
             tasksOnScheduleDate={tasksOnScheduleDate}
             projects={projects}
-            onSelectTask={selectTask}
+            onSelectTask={selectTaskFromSchedule}
           />
         </div>
       </SidebarInset>
