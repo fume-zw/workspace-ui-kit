@@ -59,7 +59,7 @@ export function TaskListPane({
   const hasSearchQuery = searchQuery.trim() !== "";
 
   return (
-    <section className="flex w-[280px] shrink-0 flex-col border-r border-border bg-background">
+    <section className="flex h-full min-h-0 w-[280px] shrink-0 flex-col border-r border-border bg-background">
       <header className="flex h-12 shrink-0 items-center border-b border-border px-3">
         <h2 className="truncate text-sm font-semibold text-foreground">
           {paneTitle}
@@ -71,7 +71,7 @@ export function TaskListPane({
           <p className="px-3 py-4 text-sm text-muted-foreground">
             {hasSearchQuery && unfilteredTaskCount > 0
               ? "検索に一致するタスクがありません。"
-              : "このプロジェクトにはタスクがありません。Pane 1 の + から追加できます。"}
+              : "このプロジェクトにはタスクがありません。ヘッダーの + から追加できます。"}
           </p>
         ) : (
           <div className="flex flex-col gap-5 px-3 py-4">

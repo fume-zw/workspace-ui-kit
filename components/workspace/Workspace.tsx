@@ -3,14 +3,9 @@
 /**
  * Workspace: 4 ペインの親コンポーネント。
  *
- * - Pane 1〜4 の state（candidates / selectedCandidateId / selectedDetail）を
- *   保持し、各ペインに props として渡す。
- *   `previousDetail` state は ADR-0011 §6 大決定 D で削除した（戻り先が候詳に固定
- *   されたため、直前の詳細を 1 段階覚える概念が不要になった）。
- * - Pane 3 = 候補者ダッシュボード（人物軸の編集: ヘッダー帯 + 採用条件 + 選考フロー）
- * - Pane 4 = ステージ軸の編集（選考ステージ詳細のみ）
- *   ADR-0015 §9 大決定 G により、Pane 4 のデフォルト state は `null`
- *   （ステージ未選択 = 畳み状態）。◀ ボタンは撤廃。
+ * - Pane 1〜4 の state（projects / tasks / subtasks / 選択 ID / 検索 / 日程）を保持し、各ペインへ props で渡す。
+ * - Pane 3 = タスク詳細 + 下部にサブタスクチェックリスト
+ * - Pane 4 = スケジュール列（上部: ミニカレンダー / 下部: 日付別の期限タスク）※常時表示
  *
  * レイアウト構造（shadcn/ui Sidebar を採用、ADR-0006 §3/§5 を本実装で改訂）:
  *
@@ -20,7 +15,7 @@
  * │ (画面最上端          │ ┌─ GlobalHeader (h-12) ─────────┐ │
  * │  〜最下端)           │ └─────────────────────────────────┘ │
  * │ collapsible="icon"  │ ┌─ Pane 2 ─┬─ Pane 3 ─┬─ Pane 4 ─┐ │
- * │ 240px ↔ 48px        │ │          │          │          │ │
+ * │ 240px ↔ 48px        │ │ 一覧      │ 詳細+SUB │ 日程    │ │
  * └────────────────────┴─┴──────────┴──────────┴──────────┘
  * ```
  *
@@ -41,6 +36,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
+import { format, startOfDay } from "date-fns";
 
 import {
   type Project,
@@ -57,7 +53,10 @@ import { filterTasksBySearch } from "@/lib/computed/task-search";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { GlobalHeader } from "@/components/workspace/GlobalHeader";
 import { ProjectPane } from "@/components/workspace/ProjectPane";
-import { type NewTaskInput } from "@/components/workspace/AddTaskDialog";
+import {
+  AddTaskDialog,
+  type NewTaskInput,
+} from "@/components/workspace/AddTaskDialog";
 import { TaskListPane } from "@/components/workspace/TaskListPane";
 import { TaskHubPane } from "@/components/workspace/TaskHubPane";
 import { SubtaskPane } from "@/components/workspace/SubtaskPane";
@@ -84,9 +83,13 @@ export function Workspace({
   const [selectedTaskId, setSelectedTaskId] = useState<string>(
     initialTasks[0]?.id ?? "",
   );
-  const [subtasksPanelActive, setSubtasksPanelActive] = useState(false);
-  const [pane4ManuallyClosed, setPane4ManuallyClosed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState(() => startOfDay(new Date()));
+
+  const setScheduleDay = useCallback((d: Date) => {
+    setScheduleDate(startOfDay(d));
+  }, []);
 
   const addProject = useCallback((name: string) => {
     setProjects((prev) => {
@@ -121,8 +124,6 @@ export function Workspace({
 
   const selectTask = useCallback((id: string) => {
     setSelectedTaskId(id);
-    setSubtasksPanelActive(false);
-    setPane4ManuallyClosed(false);
   }, []);
 
   const addTask = useCallback((input: NewTaskInput) => {
@@ -164,18 +165,6 @@ export function Workspace({
     },
     [],
   );
-
-  const openSubtasksPanel = useCallback(() => {
-    setSubtasksPanelActive(true);
-    setPane4ManuallyClosed(false);
-  }, []);
-
-  const togglePane4 = useCallback(() => {
-    setPane4ManuallyClosed((closed) => {
-      if (closed) setSubtasksPanelActive(true);
-      return !closed;
-    });
-  }, []);
 
   const updateSubtask = useCallback(
     (
@@ -227,14 +216,6 @@ export function Workspace({
         .sort((a, b) => a.sortOrder - b.sortOrder),
     [activeTaskId, subtasks],
   );
-
-  const completedSubtaskCount = useMemo(
-    () => activeSubtasks.filter((subtask) => subtask.isDone).length,
-    [activeSubtasks],
-  );
-
-  const pane4Open =
-    Boolean(activeTask) && subtasksPanelActive && !pane4ManuallyClosed;
 
   const addSubtask = useCallback(
     (title: string) => {
@@ -299,6 +280,23 @@ export function Workspace({
     [tasks],
   );
 
+  const taskDueDateCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const task of tasks) {
+      if (!task.dueDate) continue;
+      const k = task.dueDate.slice(0, 10);
+      map.set(k, (map.get(k) ?? 0) + 1);
+    }
+    return map;
+  }, [tasks]);
+
+  const tasksOnScheduleDate = useMemo(() => {
+    const key = format(scheduleDate, "yyyy-MM-dd");
+    return tasks
+      .filter((task) => task.dueDate?.startsWith(key))
+      .sort((a, b) => a.title.localeCompare(b.title, "ja"));
+  }, [tasks, scheduleDate]);
+
   return (
     // shadcn/ui の SidebarProvider が外側を取り、Pane 1 (`<Sidebar>`) を全高で固定
     // 表示する。SidebarInset が右側ブロック（GlobalHeader + Pane 2/3/4）を担う。
@@ -317,7 +315,6 @@ export function Workspace({
         unassignedTaskStatusCounts={unassignedTaskStatusCounts}
         selectedProjectId={selectedProjectId}
         onSelectProject={selectProject}
-        onAddTask={addTask}
       />
       <SidebarInset className="flex min-w-0 flex-col bg-background">
         <GlobalHeader
@@ -326,6 +323,14 @@ export function Workspace({
           projects={displayProjects}
           onAddProject={addProject}
           onDeleteProject={deleteProject}
+          onOpenAddTask={() => setAddTaskOpen(true)}
+        />
+        <AddTaskDialog
+          open={addTaskOpen}
+          onOpenChange={setAddTaskOpen}
+          projects={displayProjects}
+          selectedProjectId={selectedProjectId}
+          onSave={addTask}
         />
         {/* SidebarInset 自体が <main> を出すので、内側は <div> で組み、
             Pane 2 / Pane 3 / Pane 4 を横並びにする。 */}
@@ -342,21 +347,19 @@ export function Workspace({
           <TaskHubPane
             task={activeTask}
             projects={projects}
-            subtaskCount={activeSubtasks.length}
-            completedSubtaskCount={completedSubtaskCount}
-            subtasksPanelActive={subtasksPanelActive}
-            onOpenSubtasks={openSubtasksPanel}
-            onUpdateTask={updateTask}
-          />
-          <SubtaskPane
-            task={activeTask}
             subtasks={activeSubtasks}
-            subtasksPanelActive={subtasksPanelActive}
-            pane4Open={pane4Open}
-            onTogglePane4={togglePane4}
             onAddSubtask={addSubtask}
             onUpdateSubtask={updateSubtask}
             onDeleteSubtask={deleteSubtask}
+            onUpdateTask={updateTask}
+          />
+          <SubtaskPane
+            scheduleSelectedDate={scheduleDate}
+            onScheduleDateChange={setScheduleDay}
+            taskDueDateCounts={taskDueDateCounts}
+            tasksOnScheduleDate={tasksOnScheduleDate}
+            projects={projects}
+            onSelectTask={selectTask}
           />
         </div>
       </SidebarInset>

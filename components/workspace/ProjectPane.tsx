@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Inbox, Plus } from "lucide-react";
+import { useMemo } from "react";
+import { Inbox } from "lucide-react";
 
 import { type Project, UNASSIGNED_PROJECT_ID } from "@/lib/schema";
 import { type TaskStatusCounts } from "@/lib/computed/tasks";
@@ -11,13 +11,10 @@ import {
   TaskStatusCountSummary,
   formatTaskStatusCountLabel,
 } from "@/components/workspace/TaskStatusCountSummary";
-import { AddTaskDialog, type NewTaskInput } from "@/components/workspace/AddTaskDialog";
 import { TaskDueAlertSummary } from "@/components/workspace/TaskDueAlertSummary";
-import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -39,7 +36,6 @@ type ProjectPaneProps = {
   unassignedTaskStatusCounts: TaskStatusCounts;
   selectedProjectId: string;
   onSelectProject: (projectId: string) => void;
-  onAddTask: (input: NewTaskInput) => void;
 };
 
 export function ProjectPane({
@@ -49,32 +45,29 @@ export function ProjectPane({
   unassignedTaskStatusCounts,
   selectedProjectId,
   onSelectProject,
-  onAddTask,
 }: ProjectPaneProps) {
-  const [addTaskOpen, setAddTaskOpen] = useState(false);
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => a.sortOrder - b.sortOrder),
     [projects],
   );
 
   return (
-    <>
-      <Sidebar
-        collapsible="icon"
-        className="border-r border-sidebar-border [&_[data-slot=sidebar-container]]:bg-sidebar"
-      >
-        <SidebarHeader className="border-b border-sidebar-border p-0">
-          <div className="flex h-12 items-center justify-between gap-2 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[state=expanded]:px-5">
-            <h2 className="truncate text-sm font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-              {workspaceName}
-            </h2>
-            <Pane1Toggle />
-          </div>
-        </SidebarHeader>
+    <Sidebar
+      collapsible="icon"
+      className="border-r border-sidebar-border [&_[data-slot=sidebar-container]]:bg-sidebar"
+    >
+      <SidebarHeader className="border-b border-sidebar-border p-0">
+        <div className="flex h-12 items-center justify-between gap-2 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 group-data-[state=expanded]:px-5">
+          <h2 className="truncate text-sm font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
+            {workspaceName}
+          </h2>
+          <Pane1Toggle />
+        </div>
+      </SidebarHeader>
 
-        <SidebarContent className="flex min-h-0 flex-1 flex-col gap-3 px-1 py-3 group-data-[collapsible=icon]:hidden">
-          <TaskDueAlertSummary counts={dueAlertCounts} />
-          <SidebarGroup className="px-1">
+      <SidebarContent className="flex min-h-0 flex-1 flex-col gap-3 px-1 py-3 group-data-[collapsible=icon]:hidden">
+        <TaskDueAlertSummary counts={dueAlertCounts} />
+        <SidebarGroup className="px-1">
           <SidebarGroupLabel className="px-2 text-xs font-semibold tracking-wide text-sidebar-foreground/70 uppercase">
             プロジェクト
           </SidebarGroupLabel>
@@ -115,27 +108,6 @@ export function ProjectPane({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border p-3 group-data-[collapsible=icon]:hidden">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          onClick={() => setAddTaskOpen(true)}
-          aria-label="タスクを追加"
-          className="self-start"
-        >
-          <Plus aria-hidden="true" />
-        </Button>
-      </SidebarFooter>
     </Sidebar>
-
-    <AddTaskDialog
-      open={addTaskOpen}
-      onOpenChange={setAddTaskOpen}
-      projects={projects}
-      selectedProjectId={selectedProjectId}
-      onSave={onAddTask}
-    />
-    </>
   );
 }

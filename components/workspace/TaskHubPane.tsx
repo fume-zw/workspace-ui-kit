@@ -1,6 +1,11 @@
 "use client";
 
-import { type Project, type Task, TASK_STATUS_ORDER } from "@/lib/schema";
+import {
+  type Project,
+  type Subtask,
+  type Task,
+  TASK_STATUS_ORDER,
+} from "@/lib/schema";
 import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
 import { taskStatusBadgeVariant } from "@/lib/task-status-ui";
 import {
@@ -18,16 +23,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
+import { TaskSubtaskChecklist } from "@/components/workspace/TaskSubtaskChecklist";
 
 type TaskHubPaneProps = {
   task: Task | undefined;
   projects: Project[];
-  subtaskCount: number;
-  completedSubtaskCount: number;
-  subtasksPanelActive: boolean;
-  onOpenSubtasks: () => void;
+  subtasks: Subtask[];
+  onAddSubtask: (title: string) => void;
+  onUpdateSubtask: (
+    subtaskId: string,
+    patch: Partial<Pick<Subtask, "title" | "isDone">>,
+  ) => void;
+  onDeleteSubtask: (subtaskId: string) => void;
   onUpdateTask: (
     taskId: string,
     patch: Partial<
@@ -39,10 +46,10 @@ type TaskHubPaneProps = {
 export function TaskHubPane({
   task,
   projects,
-  subtaskCount,
-  completedSubtaskCount,
-  subtasksPanelActive,
-  onOpenSubtasks,
+  subtasks,
+  onAddSubtask,
+  onUpdateSubtask,
+  onDeleteSubtask,
   onUpdateTask,
 }: TaskHubPaneProps) {
   if (!task) {
@@ -50,7 +57,7 @@ export function TaskHubPane({
       <section className="min-w-0 flex-1 bg-canvas">
         <div className="flex h-full items-center justify-center px-8">
           <p className="text-sm text-muted-foreground">
-            タスクを選択するか、Pane 2 から追加してください。
+            タスクを選択するか、ヘッダーの + から追加してください。
           </p>
         </div>
       </section>
@@ -71,7 +78,7 @@ export function TaskHubPane({
   return (
     <section className="min-w-0 flex-1 bg-canvas">
       <ScrollArea className="h-full">
-        <div className="flex w-full flex-col px-8 py-8">
+        <div className="flex w-full flex-col gap-6 px-8 py-8">
           <Card className="w-full rounded-xl">
             <CardHeader>
               <CardTitle>タスク</CardTitle>
@@ -145,30 +152,21 @@ export function TaskHubPane({
                   />
                 </InlineFieldRow>
               </dl>
-              <Separator />
-              <div className="flex flex-col gap-2">
-                <h3 className="text-sm font-medium text-foreground">サブタスク</h3>
-                <button
-                  type="button"
-                  onClick={onOpenSubtasks}
-                  aria-label="Pane 4 でサブタスクを開く"
-                  className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-3 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                    subtasksPanelActive
-                      ? "bg-accent text-accent-foreground"
-                      : "hover:bg-muted/40",
-                  )}
-                >
-                  <span className="min-w-0 flex-1 text-sm text-foreground">
-                    {subtaskCount === 0
-                      ? "サブタスクはまだありません"
-                      : `完了 ${completedSubtaskCount} / ${subtaskCount} 件`}
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    Pane 4 へ
-                  </span>
-                </button>
-              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="w-full rounded-xl">
+            <CardHeader>
+              <CardTitle>サブタスク</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <TaskSubtaskChecklist
+                key={task.id}
+                subtasks={subtasks}
+                onAddSubtask={onAddSubtask}
+                onUpdateSubtask={onUpdateSubtask}
+                onDeleteSubtask={onDeleteSubtask}
+              />
             </CardContent>
           </Card>
         </div>

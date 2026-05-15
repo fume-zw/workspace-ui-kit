@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Settings } from "lucide-react";
+import { Plus, Search, Settings } from "lucide-react";
 
 import { type Project } from "@/lib/schema";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ type GlobalHeaderProps = {
   projects: Project[];
   onAddProject: (name: string) => void;
   onDeleteProject: (projectId: string) => void;
+  onOpenAddTask: () => void;
 };
 
 export function GlobalHeader({
@@ -28,6 +29,7 @@ export function GlobalHeader({
   projects,
   onAddProject,
   onDeleteProject,
+  onOpenAddTask,
 }: GlobalHeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
@@ -56,6 +58,24 @@ export function GlobalHeader({
           </div>
         </div>
       </form>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              aria-label="タスクを追加"
+              onClick={onOpenAddTask}
+            >
+              <Plus />
+            </Button>
+          }
+        />
+        <TooltipContent side="bottom">タスクを追加</TooltipContent>
+      </Tooltip>
 
       <Dialog>
         <Tooltip>

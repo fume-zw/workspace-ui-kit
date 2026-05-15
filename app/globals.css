@@ -85,6 +85,8 @@
   --color-task-status-done: var(--task-status-done);
   --color-task-status-done-soft: var(--task-status-done-soft);
   --color-task-due-soon: var(--task-due-soon);
+  --color-calendar-sunday: var(--calendar-sunday);
+  --color-calendar-saturday: var(--calendar-saturday);
 }
 
 :root {
@@ -119,6 +121,9 @@
   --task-status-done: oklch(0.6 0.07 150);
   --task-status-done-soft: oklch(0.955 0.024 150);
   --task-due-soon: oklch(0.7 0.1 92);
+  /* ミニカレンダー土日（識別しやすいようやや彩度を高めた赤・青） */
+  --calendar-sunday: oklch(0.43 0.13 22);
+  --calendar-saturday: oklch(0.43 0.13 252);
   --radius: 0.625rem;
   --sidebar: oklch(0.952 0.02 24);
   --sidebar-foreground: oklch(0.28 0.02 35);
@@ -201,6 +206,8 @@
   --task-status-done: oklch(0.74 0.07 150);
   --task-status-done-soft: oklch(0.34 0.03 150);
   --task-due-soon: oklch(0.8 0.09 92);
+  --calendar-sunday: oklch(0.78 0.13 22);
+  --calendar-saturday: oklch(0.78 0.13 252);
   --radius: 0.625rem;
   --font-sans:
     var(--font-inter), "Hiragino Sans", "BIZ UDPGothic", "Yu Gothic UI",
