@@ -33,6 +33,7 @@ type TaskListPaneProps = {
   selectedTaskId: string;
   onSelectTask: (id: string) => void;
   onDeleteTask: (id: string) => void;
+  emptyMessage?: string;
 };
 
 function formatDueDate(value: string | null): string {
@@ -48,6 +49,7 @@ export function TaskListPane({
   selectedTaskId,
   onSelectTask,
   onDeleteTask,
+  emptyMessage,
 }: TaskListPaneProps) {
   const [completedOpen, setCompletedOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -71,7 +73,8 @@ export function TaskListPane({
           <p className="px-3 py-4 text-sm text-muted-foreground">
             {hasSearchQuery && unfilteredTaskCount > 0
               ? "検索に一致するタスクがありません。"
-              : "このプロジェクトにはタスクがありません。ヘッダーの + から追加できます。"}
+              : (emptyMessage ??
+                "このプロジェクトにはタスクがありません。ヘッダーの + から追加できます。")}
           </p>
         ) : (
           <div className="flex flex-col gap-5 px-3 py-4">
@@ -101,10 +104,10 @@ export function TaskListPane({
         title="タスクを削除しますか？"
         itemName={deleteTarget?.title ?? ""}
         onConfirm={() => {
-          if (deleteTarget) {
-            onDeleteTask(deleteTarget.id);
-            setDeleteTarget(null);
-          }
+          setDeleteTarget((target) => {
+            if (target) onDeleteTask(target.id);
+            return null;
+          });
         }}
       />
     </section>
@@ -144,12 +147,7 @@ function TaskStatusGroup({
 
   const header = (
     <div className="flex min-w-0 items-center gap-1.5">
-      <h3
-        className={cn(
-          "truncate text-xs font-medium",
-          taskStatusHeadingClass(group.statusCode),
-        )}
-      >
+      <h3 className={cn("truncate", taskStatusHeadingClass(group.statusCode))}>
         {group.label}
       </h3>
       <Badge variant={taskStatusBadgeVariant(group.statusCode)} size="xs">
@@ -161,7 +159,7 @@ function TaskStatusGroup({
   if (!collapsible) {
     return (
       <div>
-        <div className="sticky top-0 z-10 -mx-3 mb-2 bg-background px-5 py-1.5">
+        <div className="sticky top-0 z-[1] -ml-3 mb-2 bg-background py-1.5 pl-5 pr-1">
           {header}
         </div>
         {taskList}
@@ -176,8 +174,8 @@ function TaskStatusGroup({
         render={
           <div
             className={cn(
-              "group/completed-trigger sticky top-0 z-10 -mx-3 mb-2 flex cursor-pointer items-center justify-between gap-2 bg-background px-5 py-1.5",
-              "rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+              "group/completed-trigger sticky top-0 z-[1] -ml-3 mb-2 flex cursor-pointer items-center justify-between gap-2 bg-background py-1.5 pl-5 pr-1",
+              "outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
             )}
           />
         }

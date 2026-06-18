@@ -6,7 +6,7 @@ import { Inbox } from "lucide-react";
 import { type Project, UNASSIGNED_PROJECT_ID } from "@/lib/schema";
 import { type TaskStatusCounts } from "@/lib/computed/tasks";
 import { type TaskStatusOption } from "@/lib/task-db";
-import { type TaskDueAlertCounts } from "@/lib/computed/task-due-date";
+import { type TaskDueAlertCounts, type TaskDueUrgency } from "@/lib/computed/task-due-date";
 import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
 import {
   TaskStatusCountSummary,
@@ -35,6 +35,8 @@ type ProjectPaneProps = {
   statuses: TaskStatusOption[];
   projects: ProjectWithTaskStats[];
   dueAlertCounts: TaskDueAlertCounts;
+  dueUrgencyFilter?: TaskDueUrgency | null;
+  onSelectDueUrgencyFilter?: (filter: TaskDueUrgency) => void;
   unassignedTaskStatusCounts: TaskStatusCounts;
   selectedProjectId: string;
   onSelectProject: (projectId: string) => void;
@@ -45,6 +47,8 @@ export function ProjectPane({
   statuses,
   projects,
   dueAlertCounts,
+  dueUrgencyFilter = null,
+  onSelectDueUrgencyFilter,
   unassignedTaskStatusCounts,
   selectedProjectId,
   onSelectProject,
@@ -69,7 +73,11 @@ export function ProjectPane({
       </SidebarHeader>
 
       <SidebarContent className="flex min-h-0 flex-1 flex-col gap-3 px-1 py-3 group-data-[collapsible=icon]:hidden">
-        <TaskDueAlertSummary counts={dueAlertCounts} />
+        <TaskDueAlertSummary
+          counts={dueAlertCounts}
+          activeFilter={dueUrgencyFilter}
+          onSelectFilter={onSelectDueUrgencyFilter}
+        />
         <SidebarGroup className="px-1">
           <SidebarGroupLabel className="px-2 text-xs font-semibold tracking-wide text-sidebar-foreground/70 uppercase">
             プロジェクト
@@ -77,7 +85,8 @@ export function ProjectPane({
           <SidebarGroupContent>
             <SidebarMenu>
               {sortedProjects.map((project) => {
-                const active = project.id === selectedProjectId;
+                const active =
+                  !dueUrgencyFilter && project.id === selectedProjectId;
                 return (
                   <SidebarMenuItem key={project.id}>
                     <SidebarMenuButton
@@ -99,7 +108,9 @@ export function ProjectPane({
               <SidebarMenuItem>
                 <SidebarMenuButton
                   tooltip={`${UNASSIGNED_PROJECT_LABEL}（${formatTaskStatusCountLabel(statuses, unassignedTaskStatusCounts)}）`}
-                  isActive={selectedProjectId === UNASSIGNED_PROJECT_ID}
+                  isActive={
+                    !dueUrgencyFilter && selectedProjectId === UNASSIGNED_PROJECT_ID
+                  }
                   aria-current={
                     selectedProjectId === UNASSIGNED_PROJECT_ID ? "page" : undefined
                   }

@@ -20,8 +20,13 @@ import {
 } from "@/lib/schema";
 import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
 import { countTasksByStatus } from "@/lib/computed/tasks";
-import { countTasksByDueUrgency } from "@/lib/computed/task-due-date";
+import {
+  countTasksByDueUrgency,
+  getTaskDueUrgency,
+  type TaskDueUrgency,
+} from "@/lib/computed/task-due-date";
 import { filterTasksBySearch } from "@/lib/computed/task-search";
+import { sortStatusesForTaskList } from "@/lib/task-status-ui";
 import { createClient } from "@/lib/supabase/client";
 import {
   deleteProject as deleteProjectFromDb,
@@ -74,6 +79,9 @@ export function Workspace({
     initialTasks[0]?.id ?? "",
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const [dueUrgencyFilter, setDueUrgencyFilter] = useState<TaskDueUrgency | null>(
+    null,
+  );
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(() => startOfDay(new Date()));
   const [actionError, setActionError] = useState<string | null>(null);
@@ -146,6 +154,12 @@ export function Workspace({
   const selectProject = useCallback((projectId: string) => {
     setSelectedProjectId(projectId);
     setSearchQuery("");
+    setDueUrgencyFilter(null);
+  }, []);
+
+  const selectDueUrgencyFilter = useCallback((filter: TaskDueUrgency) => {
+    setDueUrgencyFilter((current) => (current === filter ? null : filter));
+    setSearchQuery("");
   }, []);
 
   const selectTask = useCallback((id: string) => {
@@ -160,6 +174,7 @@ export function Workspace({
         setSelectedProjectId(task.projectId ?? UNASSIGNED_PROJECT_ID);
       }
       setSearchQuery("");
+      setDueUrgencyFilter(null);
     },
     [tasks],
   );
@@ -279,11 +294,38 @@ export function Workspace({
         UNASSIGNED_PROJECT_LABEL);
 
   const visibleTasks = useMemo(() => {
+    if (dueUrgencyFilter) {
+      return tasks.filter(
+        (task) =>
+          getTaskDueUrgency(task.dueDate, task.statusCode) === dueUrgencyFilter,
+      );
+    }
     if (selectedProjectId === UNASSIGNED_PROJECT_ID) {
       return tasks.filter((task) => task.projectId === null);
     }
     return tasks.filter((task) => task.projectId === selectedProjectId);
-  }, [selectedProjectId, tasks]);
+  }, [dueUrgencyFilter, selectedProjectId, tasks]);
+
+  const listPaneTitle = useMemo(() => {
+    if (dueUrgencyFilter === "urgent") return "期限切れ";
+    if (dueUrgencyFilter === "soon") return "期限間近";
+    return selectedProjectLabel;
+  }, [dueUrgencyFilter, selectedProjectLabel]);
+
+  const listPaneEmptyMessage = useMemo(() => {
+    if (dueUrgencyFilter === "urgent") {
+      return "期限切れのタスクはありません。";
+    }
+    if (dueUrgencyFilter === "soon") {
+      return "期限間近（明日が期限）のタスクはありません。";
+    }
+    return undefined;
+  }, [dueUrgencyFilter]);
+
+  const orderedStatuses = useMemo(
+    () => sortStatusesForTaskList(statuses),
+    [statuses],
+  );
 
   const searchedTasks = useMemo(
     () => filterTasksBySearch(visibleTasks, subtasks, searchQuery),
@@ -349,13 +391,13 @@ export function Workspace({
 
   const taskGroups: TaskGroup[] = useMemo(
     () =>
-      statuses.map((status) => ({
+      orderedStatuses.map((status) => ({
         statusId: status.id,
         statusCode: status.code,
         label: status.label,
         items: searchedTasks.filter((task) => task.statusId === status.id),
       })),
-    [searchedTasks, statuses],
+    [orderedStatuses, searchedTasks],
   );
 
   const dueAlertCounts = useMemo(
@@ -414,6 +456,8 @@ export function Workspace({
         statuses={statuses}
         projects={displayProjects}
         dueAlertCounts={dueAlertCounts}
+        dueUrgencyFilter={dueUrgencyFilter}
+        onSelectDueUrgencyFilter={selectDueUrgencyFilter}
         unassignedTaskStatusCounts={unassignedTaskStatusCounts}
         selectedProjectId={selectedProjectId}
         onSelectProject={selectProject}
@@ -446,13 +490,14 @@ export function Workspace({
         />
         <div className="flex min-h-0 flex-1">
           <TaskListPane
-            paneTitle={selectedProjectLabel}
+            paneTitle={listPaneTitle}
             groups={taskGroups}
             searchQuery={searchQuery}
             unfilteredTaskCount={visibleTasks.length}
             selectedTaskId={activeTaskId}
             onSelectTask={selectTask}
             onDeleteTask={deleteTask}
+            emptyMessage={listPaneEmptyMessage}
           />
           <TaskHubPane
             task={activeTask}
