@@ -6,33 +6,6 @@
  * - Pane 1〜4 の state（projects / tasks / subtasks / 選択 ID / 検索 / 日程）を保持し、各ペインへ props で渡す。
  * - Pane 3 = タスク詳細 + 下部にサブタスクチェックリスト
  * - Pane 4 = スケジュール列（上部: ミニカレンダー / 下部: 日付別の期限タスク）※常時表示
- *
- * レイアウト構造（shadcn/ui Sidebar を採用、ADR-0006 §3/§5 を本実装で改訂）:
- *
- * ```
- * <SidebarProvider> (h-screen, defaultOpen, Cmd+B でトグル)
- * ┌─ Sidebar (Pane 1) ─┬─ SidebarInset ─────────────────────┐
- * │ (画面最上端          │ ┌─ GlobalHeader (h-12) ─────────┐ │
- * │  〜最下端)           │ └─────────────────────────────────┘ │
- * │ collapsible="icon"  │ ┌─ Pane 2 ─┬─ Pane 3 ─┬─ Pane 4 ─┐ │
- * │ 240px ↔ 48px        │ │ 一覧      │ 詳細+SUB │ 日程    │ │
- * └────────────────────┴─┴──────────┴──────────┴──────────┘
- * ```
- *
- * - Pane 1 のみ画面最上端〜最下端まで届く chrome（折りたたみ可）
- * - GlobalHeader は Pane 1 を除く右側全幅（Pane 2 / Pane 3 / Pane 4 の上）に渡る
- * - Pane 4 はヘッダー直下から最下端まで
- * - Pane 1 折りたたみトグルは Pane 1 ヘッダー右端の `Pane1Toggle` 1 箇所
- *   （ADR-0006 §5 で計画していた GlobalHeader 側の SidebarTrigger は本実装で撤回）
- *
- * 仕様の出典:
- *   - openspec/decision/0006-pane-background-hierarchy-and-shadcn-inset-header.md
- *     §2（4 段階背景色階層）/ §4（保存ステータス削除）はそのまま採用
- *     §3（Pane 4 = 画面最上端〜最下端 / ヘッダーは中央エリアのみ）は本実装で再改訂
- *     §5（SidebarTrigger は GlobalHeader）も本実装で再改訂（Pane 1 ヘッダー側に集約）
- *   - openspec/decision/0009-drilldown-card-affordance.md（Pane 3 ドリルダウンカードの ▶ 規律）
- *   - openspec/changes/add-4pane-workspace-template/specs/workspace-template/spec.md
- *   - openspec/changes/add-4pane-workspace-template/design.md D51〜D56 / D65
  */
 
 import { useState, useCallback, useMemo } from "react";
@@ -44,12 +17,23 @@ import {
   type Task,
   type TaskGroup,
   UNASSIGNED_PROJECT_ID,
-  TASK_STATUS_ORDER,
 } from "@/lib/schema";
-import { TASK_STATUS_LABELS, UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
+import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
 import { countTasksByStatus } from "@/lib/computed/tasks";
 import { countTasksByDueUrgency } from "@/lib/computed/task-due-date";
 import { filterTasksBySearch } from "@/lib/computed/task-search";
+import { createClient } from "@/lib/supabase/client";
+import {
+  deleteProject as deleteProjectFromDb,
+  deleteSubtask as deleteSubtaskFromDb,
+  deleteTask as deleteTaskFromDb,
+  insertProject,
+  insertSubtask,
+  insertTask,
+  type TaskStatusOption,
+  updateSubtask as updateSubtaskInDb,
+  updateTask as updateTaskInDb,
+} from "@/lib/task-db";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { GlobalHeader } from "@/components/workspace/GlobalHeader";
 import { ProjectPane } from "@/components/workspace/ProjectPane";
@@ -62,6 +46,8 @@ import { TaskHubPane } from "@/components/workspace/TaskHubPane";
 import { SubtaskPane } from "@/components/workspace/SubtaskPane";
 
 type WorkspaceProps = {
+  statuses: TaskStatusOption[];
+  defaultStatusId: string;
   initialProjects: Project[];
   initialTasks: Task[];
   initialSubtasks: Subtask[];
@@ -69,11 +55,15 @@ type WorkspaceProps = {
 };
 
 export function Workspace({
+  statuses,
+  defaultStatusId,
   initialProjects,
   initialTasks,
   initialSubtasks,
   workspace,
 }: WorkspaceProps) {
+  const supabase = useMemo(() => createClient(), []);
+
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks);
@@ -86,36 +76,72 @@ export function Workspace({
   const [searchQuery, setSearchQuery] = useState("");
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(() => startOfDay(new Date()));
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const setScheduleDay = useCallback((d: Date) => {
     setScheduleDate(startOfDay(d));
   }, []);
 
-  const addProject = useCallback((name: string) => {
-    setProjects((prev) => {
-      const nextSortOrder =
-        prev.reduce((max, project) => Math.max(max, project.sortOrder), 0) + 1;
-      const newProject: Project = {
-        id: `proj-${Date.now()}`,
-        name,
-        sortOrder: nextSortOrder,
-        taskCount: 0,
-      };
-      setSelectedProjectId(newProject.id);
-      return [...prev, newProject];
-    });
-  }, []);
+  const addProject = useCallback(
+    async (name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
 
-  const deleteProject = useCallback((projectId: string) => {
-    setProjects((prev) => {
-      const next = prev.filter((project) => project.id !== projectId);
-      setSelectedProjectId((currentId) => {
-        if (currentId !== projectId) return currentId;
-        return next[0]?.id ?? UNASSIGNED_PROJECT_ID;
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const nextSortOrder =
+        projects.reduce((max, project) => Math.max(max, project.sortOrder), 0) + 1;
+
+      const { data, error } = await insertProject(
+        supabase,
+        user.id,
+        trimmed,
+        nextSortOrder,
+      );
+      if (error || !data) {
+        setActionError(error ?? "プロジェクトの追加に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setProjects((prev) => [...prev, data]);
+      setSelectedProjectId(data.id);
+    },
+    [projects, supabase],
+  );
+
+  const deleteProject = useCallback(
+    async (projectId: string) => {
+      const { error } = await deleteProjectFromDb(supabase, projectId);
+      if (error) {
+        setActionError(error);
+        return;
+      }
+
+      setActionError(null);
+      setProjects((prev) => {
+        const next = prev.filter((project) => project.id !== projectId);
+        setSelectedProjectId((currentId) => {
+          if (currentId !== projectId) return currentId;
+          return next[0]?.id ?? UNASSIGNED_PROJECT_ID;
+        });
+        return next;
       });
-      return next;
-    });
-  }, []);
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.projectId === projectId ? { ...task, projectId: null } : task,
+        ),
+      );
+    },
+    [supabase],
+  );
 
   const selectProject = useCallback((projectId: string) => {
     setSelectedProjectId(projectId);
@@ -126,7 +152,6 @@ export function Workspace({
     setSelectedTaskId(id);
   }, []);
 
-  /** Pane 4 アジェンダから選ぶときは一覧・詳細が同じタスクになるようプロジェクトと検索を合わせる */
   const selectTaskFromSchedule = useCallback(
     (taskId: string) => {
       const task = tasks.find((t) => t.id === taskId);
@@ -139,63 +164,113 @@ export function Workspace({
     [tasks],
   );
 
-  const addTask = useCallback((input: NewTaskInput) => {
-    const title = input.title.trim();
-    if (!title) return;
+  const addTask = useCallback(
+    async (input: NewTaskInput) => {
+      const title = input.title.trim();
+      if (!title) return;
 
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
-      title,
-      status: input.status,
-      subStatus: input.subStatus,
-      projectId: input.projectId,
-      dueDate: input.dueDate,
-    };
-    setTasks((prev) => [...prev, newTask]);
-    setSelectedTaskId(newTask.id);
-    if (input.projectId) {
-      setSelectedProjectId(input.projectId);
-    } else {
-      setSelectedProjectId(UNASSIGNED_PROJECT_ID);
-    }
-  }, []);
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
 
-  const deleteTask = useCallback((id: string) => {
-    setTasks((prev) => prev.filter((task) => task.id !== id));
-    setSubtasks((prev) => prev.filter((subtask) => subtask.taskId !== id));
-  }, []);
+      const { data, error } = await insertTask(supabase, user.id, {
+        title,
+        statusId: input.statusId,
+        projectId: input.projectId,
+        dueDate: input.dueDate,
+      });
+      if (error || !data) {
+        setActionError(error ?? "タスクの追加に失敗しました。");
+        return;
+      }
 
-  const updateTask = useCallback(
-    (
-      taskId: string,
-      patch: Partial<
-        Pick<Task, "title" | "status" | "subStatus" | "projectId" | "dueDate">
-      >,
-    ) => {
-      setTasks((prev) =>
-        prev.map((task) => (task.id === taskId ? { ...task, ...patch } : task)),
-      );
+      setActionError(null);
+      setTasks((prev) => [...prev, data]);
+      setSelectedTaskId(data.id);
+      setSelectedProjectId(input.projectId ?? UNASSIGNED_PROJECT_ID);
     },
-    [],
+    [supabase],
   );
 
-  const updateSubtask = useCallback(
-    (
+  const deleteTask = useCallback(
+    async (id: string) => {
+      const { error } = await deleteTaskFromDb(supabase, id);
+      if (error) {
+        setActionError(error);
+        return;
+      }
+
+      setActionError(null);
+      setTasks((prev) => prev.filter((task) => task.id !== id));
+      setSubtasks((prev) => prev.filter((subtask) => subtask.taskId !== id));
+      setSelectedTaskId((currentId) => (currentId === id ? "" : currentId));
+    },
+    [supabase],
+  );
+
+  const updateTask = useCallback(
+    async (
+      taskId: string,
+      patch: Partial<
+        Pick<Task, "title" | "statusId" | "projectId" | "dueDate">
+      >,
+    ) => {
+      const { data, error } = await updateTaskInDb(supabase, taskId, {
+        title: patch.title,
+        statusId: patch.statusId,
+        projectId: patch.projectId,
+        dueDate: patch.dueDate,
+      });
+      if (error || !data) {
+        setActionError(error ?? "タスクの更新に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setTasks((prev) =>
+        prev.map((task) => (task.id === taskId ? data : task)),
+      );
+    },
+    [supabase],
+  );
+
+  const updateSubtaskHandler = useCallback(
+    async (
       subtaskId: string,
       patch: Partial<Pick<Subtask, "title" | "isDone">>,
     ) => {
+      const { data, error } = await updateSubtaskInDb(supabase, subtaskId, patch);
+      if (error || !data) {
+        setActionError(error ?? "サブタスクの更新に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
       setSubtasks((prev) =>
-        prev.map((subtask) =>
-          subtask.id === subtaskId ? { ...subtask, ...patch } : subtask,
-        ),
+        prev.map((subtask) => (subtask.id === subtaskId ? data : subtask)),
       );
     },
-    [],
+    [supabase],
   );
 
-  const deleteSubtask = useCallback((subtaskId: string) => {
-    setSubtasks((prev) => prev.filter((subtask) => subtask.id !== subtaskId));
-  }, []);
+  const deleteSubtaskHandler = useCallback(
+    async (subtaskId: string) => {
+      const { error } = await deleteSubtaskFromDb(supabase, subtaskId);
+      if (error) {
+        setActionError(error);
+        return;
+      }
+
+      setActionError(null);
+      setSubtasks((prev) => prev.filter((subtask) => subtask.id !== subtaskId));
+    },
+    [supabase],
+  );
 
   const selectedProjectLabel =
     selectedProjectId === UNASSIGNED_PROJECT_ID
@@ -231,38 +306,56 @@ export function Workspace({
   );
 
   const addSubtask = useCallback(
-    (title: string) => {
+    async (title: string) => {
       if (!activeTaskId) return;
-      setSubtasks((prev) => {
-        const taskSubtasks = prev.filter(
-          (subtask) => subtask.taskId === activeTaskId,
-        );
-        const nextSortOrder =
-          taskSubtasks.reduce(
-            (max, subtask) => Math.max(max, subtask.sortOrder),
-            0,
-          ) + 1;
-        const newSubtask: Subtask = {
-          id: `st-${Date.now()}`,
-          taskId: activeTaskId,
-          title,
-          isDone: false,
-          sortOrder: nextSortOrder,
-        };
-        return [...prev, newSubtask];
-      });
+      const trimmed = title.trim();
+      if (!trimmed) return;
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const taskSubtasks = subtasks.filter(
+        (subtask) => subtask.taskId === activeTaskId,
+      );
+      const nextSortOrder =
+        taskSubtasks.reduce(
+          (max, subtask) => Math.max(max, subtask.sortOrder),
+          0,
+        ) + 1;
+
+      const { data, error } = await insertSubtask(
+        supabase,
+        user.id,
+        activeTaskId,
+        trimmed,
+        nextSortOrder,
+      );
+      if (error || !data) {
+        setActionError(error ?? "サブタスクの追加に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setSubtasks((prev) => [...prev, data]);
     },
-    [activeTaskId],
+    [activeTaskId, subtasks, supabase],
   );
 
   const taskGroups: TaskGroup[] = useMemo(
     () =>
-      TASK_STATUS_ORDER.map((status) => ({
-        status,
-        label: TASK_STATUS_LABELS[status],
-        items: searchedTasks.filter((task) => task.status === status),
+      statuses.map((status) => ({
+        statusId: status.id,
+        statusCode: status.code,
+        label: status.label,
+        items: searchedTasks.filter((task) => task.statusId === status.id),
       })),
-    [searchedTasks],
+    [searchedTasks, statuses],
   );
 
   const dueAlertCounts = useMemo(
@@ -279,18 +372,19 @@ export function Workspace({
         return {
           ...project,
           taskCount: projectTasks.length,
-          taskStatusCounts: countTasksByStatus(projectTasks),
+          taskStatusCounts: countTasksByStatus(projectTasks, statuses),
         };
       }),
-    [projects, tasks],
+    [projects, tasks, statuses],
   );
 
   const unassignedTaskStatusCounts = useMemo(
     () =>
       countTasksByStatus(
         tasks.filter((task) => task.projectId === null),
+        statuses,
       ),
-    [tasks],
+    [tasks, statuses],
   );
 
   const taskDueDateCounts = useMemo(() => {
@@ -311,18 +405,13 @@ export function Workspace({
   }, [tasks, scheduleDate]);
 
   return (
-    // shadcn/ui の SidebarProvider が外側を取り、Pane 1 (`<Sidebar>`) を全高で固定
-    // 表示する。SidebarInset が右側ブロック（GlobalHeader + Pane 2/3/4）を担う。
-    // Cmd+B のキーバインドは SidebarProvider 側で標準実装されている。
-    // SidebarProvider のラッパー div は既定 `min-h-svh w-full`。雛形では
-    // ビューポート高に固定したいので h-screen を併記し、ペイン内で min-h-0 が
-    // 効くようにする（既存 ScrollArea の挙動と整合）。
     <SidebarProvider
       defaultOpen
       className="h-screen w-full overflow-hidden bg-background text-foreground [--sidebar-width:12.24rem]"
     >
       <ProjectPane
         workspaceName={workspace.name}
+        statuses={statuses}
         projects={displayProjects}
         dueAlertCounts={dueAlertCounts}
         unassignedTaskStatusCounts={unassignedTaskStatusCounts}
@@ -330,6 +419,14 @@ export function Workspace({
         onSelectProject={selectProject}
       />
       <SidebarInset className="flex min-w-0 flex-col bg-background">
+        {actionError && (
+          <p
+            role="alert"
+            className="shrink-0 border-b border-destructive/20 bg-destructive/10 px-4 py-2 text-sm text-destructive"
+          >
+            {actionError}
+          </p>
+        )}
         <GlobalHeader
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
@@ -342,11 +439,11 @@ export function Workspace({
           open={addTaskOpen}
           onOpenChange={setAddTaskOpen}
           projects={displayProjects}
+          statuses={statuses}
+          defaultStatusId={defaultStatusId}
           selectedProjectId={selectedProjectId}
           onSave={addTask}
         />
-        {/* SidebarInset 自体が <main> を出すので、内側は <div> で組み、
-            Pane 2 / Pane 3 / Pane 4 を横並びにする。 */}
         <div className="flex min-h-0 flex-1">
           <TaskListPane
             paneTitle={selectedProjectLabel}
@@ -360,10 +457,11 @@ export function Workspace({
           <TaskHubPane
             task={activeTask}
             projects={projects}
+            statuses={statuses}
             subtasks={activeSubtasks}
             onAddSubtask={addSubtask}
-            onUpdateSubtask={updateSubtask}
-            onDeleteSubtask={deleteSubtask}
+            onUpdateSubtask={updateSubtaskHandler}
+            onDeleteSubtask={deleteSubtaskHandler}
             onUpdateTask={updateTask}
           />
           <SubtaskPane

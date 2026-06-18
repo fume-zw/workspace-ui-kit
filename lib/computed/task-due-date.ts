@@ -1,6 +1,6 @@
 import { differenceInCalendarDays, parseISO, startOfDay } from "date-fns";
 
-import { type Task, type TaskStatus } from "@/lib/schema";
+import { type Task, type TaskStatusCode } from "@/lib/schema";
 
 export type TaskDueUrgency = "urgent" | "soon";
 
@@ -8,10 +8,10 @@ export type TaskDueAlertCounts = Record<TaskDueUrgency, number>;
 
 export function getTaskDueUrgency(
   dueDate: string | null,
-  status: TaskStatus,
+  statusCode: TaskStatusCode,
   referenceDate: Date = new Date(),
 ): TaskDueUrgency | null {
-  if (!dueDate || status === "完了") return null;
+  if (!dueDate || statusCode === "done") return null;
 
   const due = startOfDay(parseISO(dueDate));
   const today = startOfDay(referenceDate);
@@ -47,12 +47,16 @@ export function taskDueUrgencyLabel(
 }
 
 export function countTasksByDueUrgency(
-  tasks: Pick<Task, "dueDate" | "status">[],
+  tasks: Pick<Task, "dueDate" | "statusCode">[],
   referenceDate: Date = new Date(),
 ): TaskDueAlertCounts {
   return tasks.reduce<TaskDueAlertCounts>(
     (counts, task) => {
-      const urgency = getTaskDueUrgency(task.dueDate, task.status, referenceDate);
+      const urgency = getTaskDueUrgency(
+        task.dueDate,
+        task.statusCode,
+        referenceDate,
+      );
       if (urgency) counts[urgency] += 1;
       return counts;
     },

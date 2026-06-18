@@ -28,6 +28,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { formatISODate, parseISODate } from "@/lib/computed/profile";
+import { cn } from "@/lib/utils";
 
 export type InlineDateFieldProps = {
   /** ISO 8601 (YYYY-MM-DD) 形式の文字列。空で「日付を選択」placeholder */
@@ -36,12 +37,15 @@ export type InlineDateFieldProps = {
   onSave: (v: string) => void;
   /** スクリーンリーダー向けラベル */
   ariaLabel: string;
+  /** トリガー（入力欄）の追加クラス。スマホ向けに高さを変えるときなど */
+  triggerClassName?: string;
 };
 
 export function InlineDateField({
   value,
   onSave,
   ariaLabel,
+  triggerClassName,
 }: InlineDateFieldProps) {
   const [open, setOpen] = useState(false);
   const selected = parseISODate(value);
@@ -50,7 +54,10 @@ export function InlineDateField({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         aria-label={ariaLabel}
-        className="flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-input bg-card px-2.5 py-1 text-left text-sm text-foreground transition-colors outline-none hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-popup-open:border-ring data-popup-open:ring-3 data-popup-open:ring-ring/50"
+        className={cn(
+          "flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-input bg-card px-2.5 py-1 text-left text-sm text-foreground transition-colors outline-none hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 data-popup-open:border-ring data-popup-open:ring-3 data-popup-open:ring-ring/50",
+          triggerClassName,
+        )}
       >
         <CalendarIcon className="size-4 shrink-0 text-muted-foreground" />
         <span

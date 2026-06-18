@@ -1,25 +1,40 @@
-import { type TaskStatus } from "@/lib/schema";
+import { type TaskStatusCode } from "@/lib/schema";
+
+type TaskStatusBadgeVariant =
+  | "task-pending"
+  | "task-active"
+  | "task-done"
+  | "destructive"
+  | "secondary";
 
 export function taskStatusBadgeVariant(
-  status: TaskStatus,
-): "task-pending" | "task-active" | "task-done" {
-  switch (status) {
-    case "未着手":
+  statusCode: TaskStatusCode,
+): TaskStatusBadgeVariant {
+  switch (statusCode) {
+    case "not_started":
       return "task-pending";
-    case "対応中":
+    case "in_progress":
       return "task-active";
-    case "完了":
+    case "urgent":
+      return "destructive";
+    case "on_hold":
+      return "secondary";
+    case "done":
       return "task-done";
   }
 }
 
-export function taskStatusHeadingClass(status: TaskStatus): string {
-  switch (status) {
-    case "未着手":
+export function taskStatusHeadingClass(statusCode: TaskStatusCode): string {
+  switch (statusCode) {
+    case "not_started":
       return "text-task-status-pending";
-    case "対応中":
+    case "in_progress":
       return "text-task-status-active";
-    case "完了":
+    case "urgent":
+      return "text-destructive";
+    case "on_hold":
+      return "text-muted-foreground";
+    case "done":
       return "text-task-status-done";
   }
 }

@@ -10,7 +10,7 @@
  *   - 現時点では key → 日本語ラベルの単純なマッピングとして持つ
  */
 
-import { type AxisKey, type StageKey, type TaskStatus } from "@/lib/schema";
+import { type AxisKey, type StageKey } from "@/lib/schema";
 
 // ===== 評価観点（4 軸固定、ADR-0005 §13 / design.md D57） =====
 // この雛形は 実績 / 思考力 / コミュニケーション / カルチャーフィット の 4 軸を採用する
@@ -38,13 +38,6 @@ export const ARCHIVED_GROUP_LABEL = "アーカイブ済み";
 
 /** Pane 1 の `project_id = null` タスク向け仮想エントリ表示名。 */
 export const UNASSIGNED_PROJECT_LABEL = "未割当";
-
-/** Pane 2 のステータス見出し。DB 値と同じ日本語をそのまま表示する。 */
-export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
-  未着手: "未着手",
-  対応中: "対応中",
-  完了: "完了",
-} as const;
 
 // ===== Pane 3 ダッシュボードのセクション見出し（ADR-0014） =====
 

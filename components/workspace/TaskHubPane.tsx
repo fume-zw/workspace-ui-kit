@@ -4,15 +4,14 @@ import {
   type Project,
   type Subtask,
   type Task,
-  TASK_STATUS_ORDER,
 } from "@/lib/schema";
 import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
+import { type TaskStatusOption } from "@/lib/task-db";
 import { taskStatusBadgeVariant } from "@/lib/task-status-ui";
 import {
   InlineDateField,
   InlineFieldRow,
   InlineSelectField,
-  InlineTextareaField,
   InlineTextField,
 } from "@/components/primitives";
 import { Badge } from "@/components/ui/badge";
@@ -28,24 +27,26 @@ import { TaskSubtaskChecklist } from "@/components/workspace/TaskSubtaskChecklis
 type TaskHubPaneProps = {
   task: Task | undefined;
   projects: Project[];
+  statuses: TaskStatusOption[];
   subtasks: Subtask[];
-  onAddSubtask: (title: string) => void;
+  onAddSubtask: (title: string) => void | Promise<void>;
   onUpdateSubtask: (
     subtaskId: string,
     patch: Partial<Pick<Subtask, "title" | "isDone">>,
-  ) => void;
-  onDeleteSubtask: (subtaskId: string) => void;
+  ) => void | Promise<void>;
+  onDeleteSubtask: (subtaskId: string) => void | Promise<void>;
   onUpdateTask: (
     taskId: string,
     patch: Partial<
-      Pick<Task, "title" | "status" | "subStatus" | "projectId" | "dueDate">
+      Pick<Task, "title" | "statusId" | "projectId" | "dueDate">
     >,
-  ) => void;
+  ) => void | Promise<void>;
 };
 
 export function TaskHubPane({
   task,
   projects,
+  statuses,
   subtasks,
   onAddSubtask,
   onUpdateSubtask,
@@ -64,6 +65,7 @@ export function TaskHubPane({
     );
   }
 
+  const statusOptions = statuses.map((status) => status.label);
   const projectOptions = [
     ...[...projects]
       .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -98,16 +100,19 @@ export function TaskHubPane({
                 </InlineFieldRow>
                 <InlineFieldRow label="ステータス">
                   <div className="flex flex-col gap-2">
-                    <Badge variant={taskStatusBadgeVariant(task.status)}>
-                      {task.status}
+                    <Badge variant={taskStatusBadgeVariant(task.statusCode)}>
+                      {task.statusLabel}
                     </Badge>
                     <InlineSelectField
                       key={`${task.id}:status`}
-                      value={task.status}
-                      options={TASK_STATUS_ORDER}
-                      onSave={(value) =>
-                        onUpdateTask(task.id, { status: value as Task["status"] })
-                      }
+                      value={task.statusLabel}
+                      options={statusOptions}
+                      onSave={(value) => {
+                        const status = statuses.find((item) => item.label === value);
+                        if (status) {
+                          onUpdateTask(task.id, { statusId: status.id });
+                        }
+                      }}
                       ariaLabel="ステータス"
                     />
                   </div>
@@ -136,19 +141,6 @@ export function TaskHubPane({
                       onUpdateTask(task.id, { projectId: project?.id ?? null });
                     }}
                     ariaLabel="プロジェクト"
-                  />
-                </InlineFieldRow>
-                <InlineFieldRow label="サブステータス">
-                  <InlineTextareaField
-                    key={`${task.id}:subStatus`}
-                    value={task.subStatus ?? ""}
-                    onSave={(value) =>
-                      onUpdateTask(task.id, {
-                        subStatus: value.trim() === "" ? null : value,
-                      })
-                    }
-                    ariaLabel="サブステータス"
-                    placeholder="自由にメモを入力"
                   />
                 </InlineFieldRow>
               </dl>

@@ -11,7 +11,7 @@ export function taskMatchesSearch(
 ): boolean {
   if (normalizedQuery === "") return true;
   if (task.title.includes(normalizedQuery)) return true;
-  if (task.subStatus?.includes(normalizedQuery)) return true;
+  if (task.statusLabel.includes(normalizedQuery)) return true;
   return taskSubtasks.some((subtask) => subtask.title.includes(normalizedQuery));
 }
 

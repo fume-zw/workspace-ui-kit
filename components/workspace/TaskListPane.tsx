@@ -77,15 +77,15 @@ export function TaskListPane({
           <div className="flex flex-col gap-5 px-3 py-4">
             {groups.map((group) => (
               <TaskStatusGroup
-                key={group.status}
+                key={group.statusId}
                 group={group}
                 selectedTaskId={selectedTaskId}
                 onSelectTask={onSelectTask}
                 onDeleteRequest={(id, title) => setDeleteTarget({ id, title })}
-                collapsible={group.status === "完了"}
-                open={group.status === "完了" ? completedOpen : undefined}
+                collapsible={group.statusCode === "done"}
+                open={group.statusCode === "done" ? completedOpen : undefined}
                 onOpenChange={
-                  group.status === "完了" ? setCompletedOpen : undefined
+                  group.statusCode === "done" ? setCompletedOpen : undefined
                 }
               />
             ))}
@@ -144,10 +144,15 @@ function TaskStatusGroup({
 
   const header = (
     <div className="flex min-w-0 items-center gap-1.5">
-      <h3 className={cn("truncate text-xs font-medium", taskStatusHeadingClass(group.status))}>
+      <h3
+        className={cn(
+          "truncate text-xs font-medium",
+          taskStatusHeadingClass(group.statusCode),
+        )}
+      >
         {group.label}
       </h3>
-      <Badge variant={taskStatusBadgeVariant(group.status)} size="xs">
+      <Badge variant={taskStatusBadgeVariant(group.statusCode)} size="xs">
         {group.items.length}
       </Badge>
     </div>
@@ -216,8 +221,8 @@ function TaskRow({
         >
           <span className="truncate text-sm text-foreground">{task.title}</span>
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant={taskStatusBadgeVariant(task.status)} size="xs">
-              {task.status}
+            <Badge variant={taskStatusBadgeVariant(task.statusCode)} size="xs">
+              {task.statusLabel}
             </Badge>
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <TaskDueWarning task={task} />

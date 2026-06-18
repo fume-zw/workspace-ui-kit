@@ -25,23 +25,27 @@ export type Project = z.infer<typeof projectSchema>;
 
 // ===== Pane 2: タスク一覧 =====
 
-/** タスクの進捗。連携先 Supabase `tasks.status` と同じ三値。 */
-export const taskStatusSchema = z.enum(["未着手", "対応中", "完了"]);
-export type TaskStatus = z.infer<typeof taskStatusSchema>;
+/** `task_statuses.code` の既知値（seed 5 件 + 将来追加）。 */
+export const TASK_STATUS_CODES = [
+  "not_started",
+  "in_progress",
+  "urgent",
+  "on_hold",
+  "done",
+] as const;
+export type TaskStatusCode = (typeof TASK_STATUS_CODES)[number];
 
 /** タスク 1 件。Pane 2 の行と Pane 3 ハブの元データ。 */
 export const taskSchema = z.object({
   id: z.string(),
   title: z.string(),
-  status: taskStatusSchema,
-  subStatus: z.string().nullable(),
+  statusId: z.string(),
+  statusCode: z.enum(TASK_STATUS_CODES),
+  statusLabel: z.string(),
   projectId: z.string().nullable(),
   dueDate: z.string().nullable(),
 });
 export type Task = z.infer<typeof taskSchema>;
-
-/** Pane 2 のステータスグループ表示順。 */
-export const TASK_STATUS_ORDER = taskStatusSchema.options;
 
 // ===== Pane 4: サブタスク =====
 
@@ -273,7 +277,8 @@ export type Group =
 
 /** Pane 2 のステータス別グループ。`TaskListPane` に渡す表示単位。 */
 export type TaskGroup = {
-  status: TaskStatus;
+  statusId: string;
+  statusCode: TaskStatusCode;
   label: string;
   items: Task[];
 };

@@ -1,46 +1,49 @@
-# タスク管理 4 ペイン 写像表（JSON フェーズ）
+# タスク管理 4 ペイン 写像表
 
 | 項目 | 内容 |
 | --- | --- |
-| ステータス | JSON フェーズ完了（Pane 1〜4 実装済み） |
-| 根拠 | [spec-task-workspace.md](./spec-task-workspace.md) §4・§8 |
+| ステータス | **作り直し版**（2026-06-11 確定反映） |
+| 根拠 | [spec-task-workspace.md](./spec-task-workspace.md) §4 |
 
 ## ペイン責務の写像
 
-| ペイン | 採用サンプル（現行コンポーネント） | タスク管理（目標） | JSON フェーズの状態 |
+| ペイン | 採用サンプル（現行コンポーネント） | タスク管理（確定） | 現状 |
 | --- | --- | --- | --- |
-| Pane 1 | `PositionPane`（`Department[]` → ポジション） | `ProjectPane`（フラット `Project[]` + 未割当） | **実装済み** |
-| Pane 2 | `CandidateListPane`（ステージ別候補者一覧） | `TaskListPane`（選択プロジェクトのタスク一覧） | **実装済み** |
-| Pane 3 | `CandidateDashboardPane`（候補者ハブ） | `TaskHubPane`（タスクハブ） | **実装済み** |
-| Pane 4 | `CandidateDetailPane`（選考ステージ詳細） | `SubtaskPane`（サブタスクチェックリスト） | **実装済み** |
+| Pane 1 | `PositionPane` → `ProjectPane` | `ProjectPane`（フラット `Project[]` + 未割当） | **実装済み** |
+| Pane 2 | `CandidateListPane` → `TaskListPane` | `TaskListPane`（選択プロジェクトのタスク一覧） | **実装済み** |
+| Pane 3 | `CandidateDashboardPane` → `TaskHubPane` | `TaskHubPane`（タスク詳細 + **下部サブタスクチェックリスト**） | **実装済み** |
+| Pane 4 | `CandidateDetailPane` → `SubtaskPane` | **`SubtaskPane` = スケジュール**（カレンダー + 期限タスクアジェンダ） | **実装済み** |
+
+> **注意:** コンポーネント名 `SubtaskPane` は歴史的経緯で残っているが、**責務はスケジュール**。サブタスク UI は Pane 3（`TaskHubPane`）内。
 
 ## 親・共通コンポーネント
 
-| 採用サンプル | タスク管理での扱い | JSON フェーズ |
-| --- | --- | --- |
-| `Workspace.tsx` | 4 ペイン state の親。Pane 1 は `Project[]` を保持 | Pane 1 接続済み |
-| `GlobalHeader.tsx` | パンくずをプロジェクト軸に簡略化 | プロジェクト名 + 候補者名（暫定） |
-| `SettingsDialog.tsx` | プロジェクト追加・削除 | プロジェクト管理に差し替え |
-| `AddItemDialog.tsx` | 名称入力ダイアログ（流用） | 流用 |
-| `DeleteConfirmDialog.tsx` | タスク・プロジェクト削除の確認 | プロジェクト削除で使用 |
-
-## データ（JSON フェーズ）
-
-| 採用サンプル | タスク管理 | 備考 |
-| --- | --- | --- |
-| `data/positions.json` | `data/projects.json` | `app/page.tsx` は `projects.json` を読む |
-| `data/candidates.json` | 採用サンプル検証用（本線 UI からは未接続） | スキーマテストのみ |
-| `data/subtasks.json` | Pane 4 チェックリスト | 読み込み済み |
-| `data/workspace.json` | 同ファイル | `unassignedTaskCount` で未割当件数を渡す |
-
-## 型・スキーマ
-
-| 採用 | タスク管理 |
+| コンポーネント | タスク管理での扱い |
 | --- | --- |
-| `Department` / `Position` | `Project`（`lib/schema.ts`） |
-| `UNASSIGNED_PROJECT_ID` | Pane 1 の「未割当」行（仮想 ID） |
+| `Workspace.tsx` | 4 ペイン state の親。Pane 3 = 詳細+subtasks、Pane 4 = スケジュール |
+| `GlobalHeader.tsx` | パンくず（プロジェクト名 + タスク名） |
+| `SettingsDialog.tsx` | プロジェクト追加・削除 |
+| `WorkspaceScheduleDock.tsx` | Pane 4 カレンダー / アジェンダ部品 |
 
-## 次の着手順（推奨）
+## データ
 
-1. 失敗時トースト（`sonner`）— 仕様 O-15
-2. Supabase 接続フェーズ
+| JSON（検証用） | Supabase（正本） | ペイン |
+| --- | --- | --- |
+| `data/projects.json` | `projects` | Pane 1 |
+| `data/tasks.json` | `tasks` | Pane 2 / 3 |
+| `data/subtasks.json` | `subtasks` | Pane 3 下部 |
+| `data/workspace.json` | —（v1 はリポジトリ固定） | ワークスペース名・アイコン |
+
+## クライアント写像
+
+| ルート | 用途 | v1 入力 |
+| --- | --- | --- |
+| `/` | PC 4 ペイン | 全項目 + サブタスク + スケジュール |
+| `/mobile` | スマホ登録（**新設予定**） | タイトル・期限・ステータス・project（任意） |
+
+## 次の着手順
+
+1. Supabase Auth 導入
+2. `/mobile` 新設
+3. PC 4 ペイン Supabase 接続
+4. 日次レポート改修（ステータス別セクション）

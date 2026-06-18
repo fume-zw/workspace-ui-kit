@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 
-import { type Project, type Task, TASK_STATUS_ORDER, UNASSIGNED_PROJECT_ID } from "@/lib/schema";
+import { InlineDateField } from "@/components/primitives";
+import { type Project, UNASSIGNED_PROJECT_ID } from "@/lib/schema";
 import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
+import { type TaskStatusOption } from "@/lib/task-db";
 import { InlineFieldRow } from "@/components/primitives";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,20 +28,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 
 export type NewTaskInput = {
   title: string;
-  status: Task["status"];
-  subStatus: string | null;
+  statusId: string;
   projectId: string | null;
   dueDate: string | null;
 };
 
 type TaskDraft = {
   title: string;
-  status: Task["status"];
-  subStatus: string;
+  statusId: string;
   projectLabel: string;
   dueDate: string;
 };
@@ -48,11 +47,17 @@ type AddTaskDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projects: Project[];
+  statuses: TaskStatusOption[];
+  defaultStatusId: string;
   selectedProjectId: string;
-  onSave: (input: NewTaskInput) => void;
+  onSave: (input: NewTaskInput) => void | Promise<void>;
 };
 
-function createDraft(projects: Project[], selectedProjectId: string): TaskDraft {
+function createDraft(
+  projects: Project[],
+  defaultStatusId: string,
+  selectedProjectId: string,
+): TaskDraft {
   const projectLabel =
     selectedProjectId === UNASSIGNED_PROJECT_ID
       ? UNASSIGNED_PROJECT_LABEL
@@ -61,26 +66,28 @@ function createDraft(projects: Project[], selectedProjectId: string): TaskDraft 
 
   return {
     title: "",
-    status: "未着手",
-    subStatus: "",
+    statusId: defaultStatusId,
     projectLabel,
     dueDate: "",
   };
 }
 
-function toNewTaskInput(draft: TaskDraft, projects: Project[]): NewTaskInput | null {
+function toNewTaskInput(
+  draft: TaskDraft,
+  projects: Project[],
+): NewTaskInput | null {
   const title = draft.title.trim();
   if (!title) return null;
 
   const projectId =
     draft.projectLabel === UNASSIGNED_PROJECT_LABEL
       ? null
-      : (projects.find((project) => project.name === draft.projectLabel)?.id ?? null);
+      : (projects.find((project) => project.name === draft.projectLabel)?.id ??
+        null);
 
   return {
     title,
-    status: draft.status,
-    subStatus: draft.subStatus.trim() === "" ? null : draft.subStatus,
+    statusId: draft.statusId,
     projectId,
     dueDate: draft.dueDate === "" ? null : draft.dueDate,
   };
@@ -90,11 +97,13 @@ export function AddTaskDialog({
   open,
   onOpenChange,
   projects,
+  statuses,
+  defaultStatusId,
   selectedProjectId,
   onSave,
 }: AddTaskDialogProps) {
   const [draft, setDraft] = useState<TaskDraft>(() =>
-    createDraft(projects, selectedProjectId),
+    createDraft(projects, defaultStatusId, selectedProjectId),
   );
 
   const projectOptions = [
@@ -104,10 +113,13 @@ export function AddTaskDialog({
     UNASSIGNED_PROJECT_LABEL,
   ];
 
-  const handleSave = () => {
+  const statusLabel =
+    statuses.find((status) => status.id === draft.statusId)?.label ?? "選択...";
+
+  const handleSave = async () => {
     const nextTask = toNewTaskInput(draft, projects);
     if (!nextTask) return;
-    onSave(nextTask);
+    await onSave(nextTask);
     onOpenChange(false);
   };
 
@@ -116,7 +128,7 @@ export function AddTaskDialog({
       open={open}
       onOpenChange={(nextOpen) => {
         if (nextOpen) {
-          setDraft(createDraft(projects, selectedProjectId));
+          setDraft(createDraft(projects, defaultStatusId, selectedProjectId));
         }
         onOpenChange(nextOpen);
       }}
@@ -140,34 +152,32 @@ export function AddTaskDialog({
               </InlineFieldRow>
               <InlineFieldRow label="ステータス">
                 <Select
-                  value={draft.status}
-                  onValueChange={(value) =>
-                    setDraft((current) => ({
-                      ...current,
-                      status: (value ?? "未着手") as Task["status"],
-                    }))
-                  }
+                  value={draft.statusId}
+                  onValueChange={(value) => {
+                    if (value) {
+                      setDraft((current) => ({ ...current, statusId: value }));
+                    }
+                  }}
                 >
                   <SelectTrigger aria-label="ステータス" className="w-full bg-card">
-                    <SelectValue />
+                    <SelectValue placeholder="選択...">{statusLabel}</SelectValue>
                   </SelectTrigger>
                   <SelectContent align="start">
-                    {TASK_STATUS_ORDER.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
+                    {statuses.map((status) => (
+                      <SelectItem key={status.id} value={status.id}>
+                        {status.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </InlineFieldRow>
               <InlineFieldRow label="期限">
-                <Input
-                  type="date"
+                <InlineDateField
                   value={draft.dueDate}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, dueDate: event.target.value }))
+                  onSave={(value) =>
+                    setDraft((current) => ({ ...current, dueDate: value }))
                   }
-                  aria-label="期限"
+                  ariaLabel="期限"
                 />
               </InlineFieldRow>
               <InlineFieldRow label="プロジェクト">
@@ -191,17 +201,6 @@ export function AddTaskDialog({
                     ))}
                   </SelectContent>
                 </Select>
-              </InlineFieldRow>
-              <InlineFieldRow label="サブステータス">
-                <Textarea
-                  value={draft.subStatus}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, subStatus: event.target.value }))
-                  }
-                  placeholder="自由にメモを入力"
-                  aria-label="サブステータス"
-                  className="min-h-24 bg-card leading-relaxed whitespace-pre-line"
-                />
               </InlineFieldRow>
             </dl>
           </CardContent>

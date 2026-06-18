@@ -10,17 +10,23 @@ const referenceDate = new Date(2026, 4, 14);
 
 describe("task due urgency", () => {
   it("marks overdue and due-today tasks as urgent", () => {
-    expect(getTaskDueUrgency("2026-05-13", "未着手", referenceDate)).toBe("urgent");
-    expect(getTaskDueUrgency("2026-05-14", "対応中", referenceDate)).toBe("urgent");
+    expect(getTaskDueUrgency("2026-05-13", "not_started", referenceDate)).toBe(
+      "urgent",
+    );
+    expect(getTaskDueUrgency("2026-05-14", "in_progress", referenceDate)).toBe(
+      "urgent",
+    );
   });
 
   it("marks tasks due tomorrow as soon", () => {
-    expect(getTaskDueUrgency("2026-05-15", "未着手", referenceDate)).toBe("soon");
+    expect(getTaskDueUrgency("2026-05-15", "not_started", referenceDate)).toBe(
+      "soon",
+    );
   });
 
   it("ignores completed tasks and tasks without due dates", () => {
-    expect(getTaskDueUrgency("2026-05-14", "完了", referenceDate)).toBeNull();
-    expect(getTaskDueUrgency(null, "未着手", referenceDate)).toBeNull();
+    expect(getTaskDueUrgency("2026-05-14", "done", referenceDate)).toBeNull();
+    expect(getTaskDueUrgency(null, "not_started", referenceDate)).toBeNull();
   });
 
   it("provides urgency labels", () => {
@@ -39,12 +45,12 @@ describe("task due urgency", () => {
     expect(
       countTasksByDueUrgency(
         [
-          { dueDate: "2026-05-13", status: "未着手" },
-          { dueDate: "2026-05-14", status: "対応中" },
-          { dueDate: "2026-05-15", status: "未着手" },
-          { dueDate: "2026-05-20", status: "未着手" },
-          { dueDate: "2026-05-14", status: "完了" },
-          { dueDate: null, status: "未着手" },
+          { dueDate: "2026-05-13", statusCode: "not_started" },
+          { dueDate: "2026-05-14", statusCode: "in_progress" },
+          { dueDate: "2026-05-15", statusCode: "not_started" },
+          { dueDate: "2026-05-20", statusCode: "not_started" },
+          { dueDate: "2026-05-14", statusCode: "done" },
+          { dueDate: null, statusCode: "not_started" },
         ],
         referenceDate,
       ),

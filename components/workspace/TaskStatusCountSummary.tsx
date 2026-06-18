@@ -1,35 +1,43 @@
 import { type TaskStatusCounts } from "@/lib/computed/tasks";
-import { TASK_STATUS_ORDER } from "@/lib/schema";
+import { type TaskStatusOption } from "@/lib/task-db";
 import { taskStatusHeadingClass } from "@/lib/task-status-ui";
 
-const PANE1_TASK_STATUS_DISPLAY = TASK_STATUS_ORDER.filter(
-  (status) => status !== "完了",
-);
-
 type TaskStatusCountSummaryProps = {
+  statuses: TaskStatusOption[];
   counts: TaskStatusCounts;
 };
 
-export function formatTaskStatusCountLabel(counts: TaskStatusCounts): string {
-  return PANE1_TASK_STATUS_DISPLAY.map(
-    (status) => `${status}${counts[status]}件`,
-  ).join("、");
+export function formatTaskStatusCountLabel(
+  statuses: TaskStatusOption[],
+  counts: TaskStatusCounts,
+): string {
+  return statuses
+    .filter((status) => status.code !== "done")
+    .map((status) => `${status.label}${counts[status.id] ?? 0}件`)
+    .join("、");
 }
 
-export function TaskStatusCountSummary({ counts }: TaskStatusCountSummaryProps) {
+export function TaskStatusCountSummary({
+  statuses,
+  counts,
+}: TaskStatusCountSummaryProps) {
+  const displayStatuses = statuses.filter((status) => status.code !== "done");
+
   return (
     <span
       className="flex shrink-0 items-center text-[10px] tabular-nums"
-      aria-label={formatTaskStatusCountLabel(counts)}
+      aria-label={formatTaskStatusCountLabel(statuses, counts)}
     >
-      {PANE1_TASK_STATUS_DISPLAY.map((status, index) => (
-        <span key={status} className="flex items-center">
+      {displayStatuses.map((status, index) => (
+        <span key={status.id} className="flex items-center">
           {index > 0 && (
             <span className="px-0.5 text-muted-foreground/60" aria-hidden>
               ｜
             </span>
           )}
-          <span className={taskStatusHeadingClass(status)}>{counts[status]}</span>
+          <span className={taskStatusHeadingClass(status.code)}>
+            {counts[status.id] ?? 0}
+          </span>
         </span>
       ))}
     </span>

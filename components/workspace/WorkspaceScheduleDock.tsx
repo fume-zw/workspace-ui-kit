@@ -213,8 +213,8 @@ export function ScheduleDockAgenda({
                   <span className="truncate text-[10px] text-muted-foreground">
                     {taskProjectLabel(task, projects)}
                   </span>
-                  <Badge variant={taskStatusBadgeVariant(task.status)} size="xs">
-                    {task.status}
+                  <Badge variant={taskStatusBadgeVariant(task.statusCode)} size="xs">
+                    {task.statusLabel}
                   </Badge>
                 </button>
               </li>

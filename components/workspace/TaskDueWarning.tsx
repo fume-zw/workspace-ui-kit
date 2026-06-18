@@ -9,11 +9,11 @@ import { type Task } from "@/lib/schema";
 import { cn } from "@/lib/utils";
 
 type TaskDueWarningProps = {
-  task: Pick<Task, "dueDate" | "status">;
+  task: Pick<Task, "dueDate" | "statusCode">;
 };
 
 export function TaskDueWarning({ task }: TaskDueWarningProps) {
-  const urgency = getTaskDueUrgency(task.dueDate, task.status);
+  const urgency = getTaskDueUrgency(task.dueDate, task.statusCode);
   if (!urgency || !task.dueDate) return null;
 
   return (

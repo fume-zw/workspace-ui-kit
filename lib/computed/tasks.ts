@@ -1,14 +1,21 @@
-import {
-  type Task,
-  type TaskStatus,
-  TASK_STATUS_ORDER,
-} from "@/lib/schema";
+import { type Task } from "@/lib/schema";
+import { type TaskStatusOption } from "@/lib/task-db";
 
-export type TaskStatusCounts = Record<TaskStatus, number>;
+export type TaskStatusCounts = Record<string, number>;
 
-export function countTasksByStatus(tasks: Task[]): TaskStatusCounts {
-  return TASK_STATUS_ORDER.reduce<TaskStatusCounts>((counts, status) => {
-    counts[status] = tasks.filter((task) => task.status === status).length;
-    return counts;
-  }, { 未着手: 0, 対応中: 0, 完了: 0 });
+export function countTasksByStatus(
+  tasks: Task[],
+  statuses: TaskStatusOption[],
+): TaskStatusCounts {
+  const counts = Object.fromEntries(
+    statuses.map((status) => [status.id, 0]),
+  ) as TaskStatusCounts;
+
+  for (const task of tasks) {
+    if (counts[task.statusId] !== undefined) {
+      counts[task.statusId] += 1;
+    }
+  }
+
+  return counts;
 }

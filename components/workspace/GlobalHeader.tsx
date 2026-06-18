@@ -40,7 +40,7 @@ export function GlobalHeader({
       >
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="workspace-task-search" className="sr-only">
-            タスク・サブタスク・サブステータスを検索
+            タスク・サブタスクを検索
           </Label>
           <div className="relative flex items-center">
             <Search
@@ -52,7 +52,7 @@ export function GlobalHeader({
               type="search"
               value={searchQuery}
               onChange={(event) => onSearchQueryChange(event.target.value)}
-              placeholder="タスク・サブタスク・サブステータスを検索"
+              placeholder="タスク・サブタスクを検索"
               className="pl-8"
             />
           </div>

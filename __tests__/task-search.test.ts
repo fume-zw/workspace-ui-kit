@@ -10,8 +10,9 @@ import { type Subtask, type Task } from "@/lib/schema";
 const task: Task = {
   id: "task-1",
   title: "トップページの文言を更新する",
-  status: "未着手",
-  subStatus: null,
+  statusId: "status-not-started",
+  statusCode: "not_started",
+  statusLabel: "未着手",
   projectId: "proj-1",
   dueDate: null,
 };
@@ -39,17 +40,17 @@ describe("task search", () => {
     expect(taskMatchesSearch(task, subtasks, "ヒーロー")).toBe(true);
   });
 
-  it("matches sub status with partial text", () => {
+  it("matches status labels with partial text", () => {
     expect(
       taskMatchesSearch(
-        { ...task, subStatus: "採用メッセージのトーンを人事と確認中。" },
+        { ...task, statusLabel: "至急対応" },
         subtasks,
-        "人事",
+        "至急",
       ),
     ).toBe(true);
   });
 
-  it("filters tasks by task, subtask, or sub status", () => {
+  it("filters tasks by task, subtask, or status label", () => {
     const otherTask: Task = {
       ...task,
       id: "task-2",

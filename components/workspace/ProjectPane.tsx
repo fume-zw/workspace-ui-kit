@@ -5,6 +5,7 @@ import { Inbox } from "lucide-react";
 
 import { type Project, UNASSIGNED_PROJECT_ID } from "@/lib/schema";
 import { type TaskStatusCounts } from "@/lib/computed/tasks";
+import { type TaskStatusOption } from "@/lib/task-db";
 import { type TaskDueAlertCounts } from "@/lib/computed/task-due-date";
 import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
 import {
@@ -31,6 +32,7 @@ type ProjectWithTaskStats = Project & {
 
 type ProjectPaneProps = {
   workspaceName: string;
+  statuses: TaskStatusOption[];
   projects: ProjectWithTaskStats[];
   dueAlertCounts: TaskDueAlertCounts;
   unassignedTaskStatusCounts: TaskStatusCounts;
@@ -40,6 +42,7 @@ type ProjectPaneProps = {
 
 export function ProjectPane({
   workspaceName,
+  statuses,
   projects,
   dueAlertCounts,
   unassignedTaskStatusCounts,
@@ -78,21 +81,24 @@ export function ProjectPane({
                 return (
                   <SidebarMenuItem key={project.id}>
                     <SidebarMenuButton
-                      tooltip={`${project.name}（${formatTaskStatusCountLabel(project.taskStatusCounts)}）`}
+                      tooltip={`${project.name}（${formatTaskStatusCountLabel(statuses, project.taskStatusCounts)}）`}
                       isActive={active}
                       aria-current={active ? "page" : undefined}
                       onClick={() => onSelectProject(project.id)}
                     >
                       <span className="size-4 shrink-0" aria-hidden />
                       <span className="min-w-0 flex-1 truncate">{project.name}</span>
-                      <TaskStatusCountSummary counts={project.taskStatusCounts} />
+                      <TaskStatusCountSummary
+                        statuses={statuses}
+                        counts={project.taskStatusCounts}
+                      />
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
               })}
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  tooltip={`${UNASSIGNED_PROJECT_LABEL}（${formatTaskStatusCountLabel(unassignedTaskStatusCounts)}）`}
+                  tooltip={`${UNASSIGNED_PROJECT_LABEL}（${formatTaskStatusCountLabel(statuses, unassignedTaskStatusCounts)}）`}
                   isActive={selectedProjectId === UNASSIGNED_PROJECT_ID}
                   aria-current={
                     selectedProjectId === UNASSIGNED_PROJECT_ID ? "page" : undefined
@@ -101,7 +107,10 @@ export function ProjectPane({
                 >
                   <Inbox />
                   <span className="min-w-0 flex-1 truncate">{UNASSIGNED_PROJECT_LABEL}</span>
-                  <TaskStatusCountSummary counts={unassignedTaskStatusCounts} />
+                  <TaskStatusCountSummary
+                    statuses={statuses}
+                    counts={unassignedTaskStatusCounts}
+                  />
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
