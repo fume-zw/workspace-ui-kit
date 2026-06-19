@@ -83,6 +83,7 @@ export function Workspace({
     null,
   );
   const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [addTaskDialogKey, setAddTaskDialogKey] = useState(0);
   const [scheduleDate, setScheduleDate] = useState(() => startOfDay(new Date()));
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -429,22 +430,29 @@ export function Workspace({
     [tasks, statuses],
   );
 
+  const scheduleTasks = useMemo(
+    () =>
+      tasks.filter(
+        (task) => task.dueDate && task.statusCode !== "done",
+      ),
+    [tasks],
+  );
+
   const taskDueDateCounts = useMemo(() => {
     const map = new Map<string, number>();
-    for (const task of tasks) {
-      if (!task.dueDate) continue;
-      const k = task.dueDate.slice(0, 10);
+    for (const task of scheduleTasks) {
+      const k = task.dueDate!.slice(0, 10);
       map.set(k, (map.get(k) ?? 0) + 1);
     }
     return map;
-  }, [tasks]);
+  }, [scheduleTasks]);
 
   const tasksOnScheduleDate = useMemo(() => {
     const key = format(scheduleDate, "yyyy-MM-dd");
-    return tasks
-      .filter((task) => task.dueDate?.startsWith(key))
+    return scheduleTasks
+      .filter((task) => task.dueDate!.startsWith(key))
       .sort((a, b) => a.title.localeCompare(b.title, "ja"));
-  }, [tasks, scheduleDate]);
+  }, [scheduleTasks, scheduleDate]);
 
   return (
     <SidebarProvider
@@ -477,9 +485,13 @@ export function Workspace({
           projects={displayProjects}
           onAddProject={addProject}
           onDeleteProject={deleteProject}
-          onOpenAddTask={() => setAddTaskOpen(true)}
+          onOpenAddTask={() => {
+            setAddTaskDialogKey((key) => key + 1);
+            setAddTaskOpen(true);
+          }}
         />
         <AddTaskDialog
+          key={addTaskDialogKey}
           open={addTaskOpen}
           onOpenChange={setAddTaskOpen}
           projects={displayProjects}

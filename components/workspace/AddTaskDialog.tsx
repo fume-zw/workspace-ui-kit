@@ -127,7 +127,7 @@ export function AddTaskDialog({
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (nextOpen) {
+        if (!nextOpen) {
           setDraft(createDraft(projects, defaultStatusId, selectedProjectId));
         }
         onOpenChange(nextOpen);
