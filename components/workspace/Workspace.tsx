@@ -25,7 +25,7 @@ import {
   getTaskDueUrgency,
   type TaskDueUrgency,
 } from "@/lib/computed/task-due-date";
-import { filterTasksBySearch } from "@/lib/computed/task-search";
+import { filterTasksBySearch, buildTaskSearchProjectGroups, normalizeTaskSearchQuery } from "@/lib/computed/task-search";
 import { sortStatusesForTaskList } from "@/lib/task-status-ui";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -38,6 +38,7 @@ import {
   type TaskStatusOption,
   updateSubtask as updateSubtaskInDb,
   updateTask as updateTaskInDb,
+  updateProjectSortOrders,
 } from "@/lib/task-db";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { GlobalHeader } from "@/components/workspace/GlobalHeader";
@@ -148,6 +149,37 @@ export function Workspace({
           task.projectId === projectId ? { ...task, projectId: null } : task,
         ),
       );
+    },
+    [supabase],
+  );
+
+  const reorderProjects = useCallback(
+    async (orderedIds: string[]) => {
+      let nextProjects: Project[] = [];
+
+      setProjects((prev) => {
+        const projectMap = new Map(prev.map((project) => [project.id, project]));
+        nextProjects = orderedIds.flatMap((id, index) => {
+          const project = projectMap.get(id);
+          return project ? [{ ...project, sortOrder: index + 1 }] : [];
+        });
+        return nextProjects;
+      });
+
+      if (nextProjects.length === 0) return;
+
+      setActionError(null);
+
+      const { error } = await updateProjectSortOrders(
+        supabase,
+        nextProjects.map((project) => ({
+          id: project.id,
+          sortOrder: project.sortOrder,
+        })),
+      );
+      if (error) {
+        setActionError(error);
+      }
     },
     [supabase],
   );
@@ -294,7 +326,12 @@ export function Workspace({
       : (projects.find((project) => project.id === selectedProjectId)?.name ??
         UNASSIGNED_PROJECT_LABEL);
 
+  const isSearchActive = normalizeTaskSearchQuery(searchQuery) !== "";
+
   const visibleTasks = useMemo(() => {
+    if (isSearchActive) {
+      return tasks;
+    }
     if (dueUrgencyFilter) {
       return tasks.filter(
         (task) =>
@@ -305,13 +342,16 @@ export function Workspace({
       return tasks.filter((task) => task.projectId === null);
     }
     return tasks.filter((task) => task.projectId === selectedProjectId);
-  }, [dueUrgencyFilter, selectedProjectId, tasks]);
+  }, [dueUrgencyFilter, isSearchActive, selectedProjectId, tasks]);
 
   const listPaneTitle = useMemo(() => {
+    if (isSearchActive) {
+      return `「${normalizeTaskSearchQuery(searchQuery)}」の検索結果`;
+    }
     if (dueUrgencyFilter === "urgent") return "期限切れ";
     if (dueUrgencyFilter === "soon") return "期限間近";
     return selectedProjectLabel;
-  }, [dueUrgencyFilter, selectedProjectLabel]);
+  }, [dueUrgencyFilter, isSearchActive, searchQuery, selectedProjectLabel]);
 
   const listPaneEmptyMessage = useMemo(() => {
     if (dueUrgencyFilter === "urgent") {
@@ -388,6 +428,20 @@ export function Workspace({
       setSubtasks((prev) => [...prev, data]);
     },
     [activeTaskId, subtasks, supabase],
+  );
+
+  const searchProjectGroups = useMemo(
+    () =>
+      isSearchActive
+        ? buildTaskSearchProjectGroups(
+            tasks,
+            subtasks,
+            projects,
+            statuses,
+            searchQuery,
+          )
+        : [],
+    [isSearchActive, projects, searchQuery, statuses, subtasks, tasks],
   );
 
   const taskGroups: TaskGroup[] = useMemo(
@@ -469,6 +523,7 @@ export function Workspace({
         unassignedTaskStatusCounts={unassignedTaskStatusCounts}
         selectedProjectId={selectedProjectId}
         onSelectProject={selectProject}
+        onReorderProjects={reorderProjects}
       />
       <SidebarInset className="flex min-w-0 flex-col bg-background">
         {actionError && (
@@ -504,6 +559,7 @@ export function Workspace({
           <TaskListPane
             paneTitle={listPaneTitle}
             groups={taskGroups}
+            searchProjectGroups={searchProjectGroups}
             searchQuery={searchQuery}
             unfilteredTaskCount={visibleTasks.length}
             selectedTaskId={activeTaskId}

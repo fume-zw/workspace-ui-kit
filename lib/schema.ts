@@ -282,3 +282,10 @@ export type TaskGroup = {
   label: string;
   items: Task[];
 };
+
+/** 横断検索時の Pane 2 表示単位。プロジェクト見出し + ステータス別タスク。 */
+export type TaskSearchProjectGroup = {
+  projectId: string;
+  label: string;
+  groups: TaskGroup[];
+};

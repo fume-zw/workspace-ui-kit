@@ -244,6 +244,20 @@ export async function deleteProject(
   return { error: error?.message ?? null };
 }
 
+export async function updateProjectSortOrders(
+  supabase: SupabaseClient,
+  orders: { id: string; sortOrder: number }[],
+): Promise<{ error: string | null }> {
+  const results = await Promise.all(
+    orders.map(({ id, sortOrder }) =>
+      supabase.from("projects").update({ sort_order: sortOrder }).eq("id", id),
+    ),
+  );
+
+  const failed = results.find((result) => result.error);
+  return { error: failed?.error?.message ?? null };
+}
+
 export async function insertTask(
   supabase: SupabaseClient,
   userId: string,

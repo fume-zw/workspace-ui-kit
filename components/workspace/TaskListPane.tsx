@@ -4,7 +4,7 @@ import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { ChevronDown, MoreHorizontal, Trash2 } from "lucide-react";
 
-import { type Task, type TaskGroup } from "@/lib/schema";
+import { type Task, type TaskGroup, type TaskSearchProjectGroup } from "@/lib/schema";
 import { taskStatusBadgeVariant, taskStatusHeadingClass } from "@/lib/task-status-ui";
 import { DeleteConfirmDialog } from "@/components/workspace/DeleteConfirmDialog";
 import { TaskDueWarning } from "@/components/workspace/TaskDueWarning";
@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 type TaskListPaneProps = {
   paneTitle: string;
   groups: TaskGroup[];
+  searchProjectGroups?: TaskSearchProjectGroup[];
   searchQuery: string;
   unfilteredTaskCount: number;
   selectedTaskId: string;
@@ -44,6 +45,7 @@ function formatDueDate(value: string | null): string {
 export function TaskListPane({
   paneTitle,
   groups,
+  searchProjectGroups = [],
   searchQuery,
   unfilteredTaskCount,
   selectedTaskId,
@@ -51,14 +53,24 @@ export function TaskListPane({
   onDeleteTask,
   emptyMessage,
 }: TaskListPaneProps) {
+  const [completedOpenByProject, setCompletedOpenByProject] = useState<
+    Record<string, boolean>
+  >({});
   const [completedOpen, setCompletedOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     title: string;
   } | null>(null);
 
-  const totalCount = groups.reduce((sum, group) => sum + group.items.length, 0);
   const hasSearchQuery = searchQuery.trim() !== "";
+  const isSearchMode = hasSearchQuery;
+  const totalCount = isSearchMode
+    ? searchProjectGroups.reduce(
+        (sum, section) =>
+          sum + section.groups.reduce((groupSum, group) => groupSum + group.items.length, 0),
+        0,
+      )
+    : groups.reduce((sum, group) => sum + group.items.length, 0);
 
   return (
     <section className="flex h-full min-h-0 w-[280px] shrink-0 flex-col border-r border-border bg-background">
@@ -76,6 +88,44 @@ export function TaskListPane({
               : (emptyMessage ??
                 "このプロジェクトにはタスクがありません。ヘッダーの + から追加できます。")}
           </p>
+        ) : isSearchMode ? (
+          <div className="flex flex-col gap-6 px-3 py-4">
+            {searchProjectGroups.map((section) => (
+              <section key={section.projectId} className="flex flex-col gap-4">
+                <h3 className="sticky top-0 z-[2] -mx-3 border-b border-border bg-background px-3 py-2 text-sm font-semibold text-foreground">
+                  {section.label}
+                </h3>
+                <div className="flex flex-col gap-5">
+                  {section.groups.map((group) => (
+                    <TaskStatusGroup
+                      key={`${section.projectId}-${group.statusId}`}
+                      group={group}
+                      selectedTaskId={selectedTaskId}
+                      onSelectTask={onSelectTask}
+                      onDeleteRequest={(id, title) =>
+                        setDeleteTarget({ id, title })
+                      }
+                      collapsible={group.statusCode === "done"}
+                      open={
+                        group.statusCode === "done"
+                          ? (completedOpenByProject[section.projectId] ?? false)
+                          : undefined
+                      }
+                      onOpenChange={
+                        group.statusCode === "done"
+                          ? (open) =>
+                              setCompletedOpenByProject((current) => ({
+                                ...current,
+                                [section.projectId]: open,
+                              }))
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         ) : (
           <div className="flex flex-col gap-5 px-3 py-4">
             {groups.map((group) => (
