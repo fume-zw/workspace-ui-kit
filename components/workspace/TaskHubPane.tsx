@@ -1,10 +1,14 @@
 "use client";
 
+import { Settings2 } from "lucide-react";
+
 import {
   type Project,
+  type RecurringTaskTemplate,
   type Subtask,
   type Task,
 } from "@/lib/schema";
+import { formatRecurrenceSummary } from "@/lib/computed/recurring-labels";
 import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
 import { type TaskStatusOption } from "@/lib/task-db";
 import { taskStatusBadgeVariant } from "@/lib/task-status-ui";
@@ -15,6 +19,7 @@ import {
   InlineTextField,
 } from "@/components/primitives";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -41,6 +46,8 @@ type TaskHubPaneProps = {
       Pick<Task, "title" | "statusId" | "projectId" | "dueDate">
     >,
   ) => void | Promise<void>;
+  recurringTemplate?: RecurringTaskTemplate;
+  onEditRecurringTemplate?: (templateId: string) => void;
 };
 
 export function TaskHubPane({
@@ -52,6 +59,8 @@ export function TaskHubPane({
   onUpdateSubtask,
   onDeleteSubtask,
   onUpdateTask,
+  recurringTemplate,
+  onEditRecurringTemplate,
 }: TaskHubPaneProps) {
   if (!task) {
     return (
@@ -77,10 +86,35 @@ export function TaskHubPane({
       UNASSIGNED_PROJECT_LABEL)
     : UNASSIGNED_PROJECT_LABEL;
 
+  const isRecurringInstance = task.recurringTemplateId != null;
+
   return (
     <section className="min-w-0 flex-1 bg-canvas">
       <ScrollArea className="h-full">
         <div className="flex w-full flex-col gap-6 px-8 py-8">
+          {isRecurringInstance && recurringTemplate && onEditRecurringTemplate && (
+            <Card className="w-full rounded-xl border-dashed">
+              <CardContent className="flex flex-col gap-3 pt-6">
+                <p className="text-sm text-muted-foreground">
+                  このタスクは定期タスクの 1 回分です。ルール:{" "}
+                  {formatRecurrenceSummary(recurringTemplate)}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-fit"
+                  onClick={() =>
+                    onEditRecurringTemplate(recurringTemplate.id)
+                  }
+                >
+                  <Settings2 data-icon="inline-start" />
+                  定期タスクのルールを編集
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="w-full rounded-xl">
             <CardHeader>
               <CardTitle>タスク</CardTitle>
@@ -128,22 +162,24 @@ export function TaskHubPane({
                     clearable
                   />
                 </InlineFieldRow>
-                <InlineFieldRow label="プロジェクト">
-                  <InlineSelectField
-                    key={`${task.id}:project`}
-                    value={projectLabel}
-                    options={projectOptions}
-                    onSave={(value) => {
-                      if (value === UNASSIGNED_PROJECT_LABEL) {
-                        onUpdateTask(task.id, { projectId: null });
-                        return;
-                      }
-                      const project = projects.find((item) => item.name === value);
-                      onUpdateTask(task.id, { projectId: project?.id ?? null });
-                    }}
-                    ariaLabel="プロジェクト"
-                  />
-                </InlineFieldRow>
+                {!isRecurringInstance && (
+                  <InlineFieldRow label="プロジェクト">
+                    <InlineSelectField
+                      key={`${task.id}:project`}
+                      value={projectLabel}
+                      options={projectOptions}
+                      onSave={(value) => {
+                        if (value === UNASSIGNED_PROJECT_LABEL) {
+                          onUpdateTask(task.id, { projectId: null });
+                          return;
+                        }
+                        const project = projects.find((item) => item.name === value);
+                        onUpdateTask(task.id, { projectId: project?.id ?? null });
+                      }}
+                      ariaLabel="プロジェクト"
+                    />
+                  </InlineFieldRow>
+                )}
               </dl>
             </CardContent>
           </Card>

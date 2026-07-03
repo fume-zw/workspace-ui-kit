@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Inbox } from "lucide-react";
+import { Inbox, Repeat } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -22,11 +22,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 
-import { type Project, UNASSIGNED_PROJECT_ID } from "@/lib/schema";
+import { type Project, RECURRING_PROJECT_ID, UNASSIGNED_PROJECT_ID } from "@/lib/schema";
 import { type TaskStatusCounts } from "@/lib/computed/tasks";
 import { type TaskStatusOption } from "@/lib/task-db";
 import { type TaskDueAlertCounts, type TaskDueUrgency } from "@/lib/computed/task-due-date";
-import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
+import { RECURRING_PROJECT_LABEL, UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
 import {
   TaskStatusCountSummary,
   formatTaskStatusCountLabel,
@@ -58,6 +58,7 @@ type ProjectPaneProps = {
   dueUrgencyFilter?: TaskDueUrgency | null;
   onSelectDueUrgencyFilter?: (filter: TaskDueUrgency) => void;
   unassignedTaskStatusCounts: TaskStatusCounts;
+  recurringTaskStatusCounts: TaskStatusCounts;
   selectedProjectId: string;
   onSelectProject: (projectId: string) => void;
   onReorderProjects: (orderedIds: string[]) => void;
@@ -76,6 +77,7 @@ export function ProjectPane({
   dueUrgencyFilter = null,
   onSelectDueUrgencyFilter,
   unassignedTaskStatusCounts,
+  recurringTaskStatusCounts,
   selectedProjectId,
   onSelectProject,
   onReorderProjects,
@@ -235,6 +237,27 @@ export function ProjectPane({
                   <TaskStatusCountSummary
                     statuses={statuses}
                     counts={unassignedTaskStatusCounts}
+                  />
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip={`${RECURRING_PROJECT_LABEL}（${formatTaskStatusCountLabel(statuses, recurringTaskStatusCounts)}）`}
+                  isActive={
+                    !dueUrgencyFilter && selectedProjectId === RECURRING_PROJECT_ID
+                  }
+                  aria-current={
+                    selectedProjectId === RECURRING_PROJECT_ID ? "page" : undefined
+                  }
+                  onClick={() => onSelectProject(RECURRING_PROJECT_ID)}
+                >
+                  <Repeat />
+                  <span className="min-w-0 flex-1 truncate">
+                    {RECURRING_PROJECT_LABEL}
+                  </span>
+                  <TaskStatusCountSummary
+                    statuses={statuses}
+                    counts={recurringTaskStatusCounts}
                   />
                 </SidebarMenuButton>
               </SidebarMenuItem>

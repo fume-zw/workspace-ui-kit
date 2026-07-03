@@ -11,7 +11,10 @@
 import { useState, useCallback, useMemo } from "react";
 import { format, startOfDay } from "date-fns";
 
+import { type ScheduleGridMode } from "@/lib/computed/schedule-layout";
+
 import {
+  type EventLabel,
   type Project,
   type RecurringTaskTemplate,
   type ScheduleEntry,
@@ -20,9 +23,10 @@ import {
   type Task,
   type TaskGroup,
   type WorkspaceView,
+  RECURRING_PROJECT_ID,
   UNASSIGNED_PROJECT_ID,
 } from "@/lib/schema";
-import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
+import { RECURRING_PROJECT_LABEL, UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
 import { countTasksByStatus } from "@/lib/computed/tasks";
 import {
   countTasksByDueUrgency,
@@ -48,13 +52,18 @@ import {
 import {
   generateRecurringInstances,
   insertRecurringTemplate,
+  regenerateFutureInstancesForTemplate,
+  updateRecurringTemplate,
 } from "@/lib/recurring-db";
 import {
+  archiveEventLabel,
   archiveShiftLabel,
   deleteScheduleEntry,
+  insertEventLabel,
   insertScheduleEntry,
   insertShiftLabel,
   insertShiftsBulk,
+  updateEventLabel,
   updateScheduleEntry,
   updateShiftLabel,
 } from "@/lib/schedule-db";
@@ -78,10 +87,15 @@ import {
   ShiftLabelSettings,
   type ShiftLabelFormValue,
 } from "@/components/workspace/ShiftLabelSettings";
-import { ScheduleEntryListPane } from "@/components/workspace/ScheduleEntryListPane";
-import { ScheduleEntryHubPane } from "@/components/workspace/ScheduleEntryHubPane";
+import { ScheduleWeekView } from "@/components/workspace/ScheduleWeekView";
+import { EditScheduleEntryDialog } from "@/components/workspace/EditScheduleEntryDialog";
+import {
+  EventLabelSettings,
+  type EventLabelFormValue,
+} from "@/components/workspace/EventLabelSettings";
 import { TaskListPane } from "@/components/workspace/TaskListPane";
 import { TaskHubPane } from "@/components/workspace/TaskHubPane";
+import { RecurringTaskTemplateHubPane } from "@/components/workspace/RecurringTaskTemplateHubPane";
 import { SubtaskPane } from "@/components/workspace/SubtaskPane";
 
 type WorkspaceProps = {
@@ -91,6 +105,7 @@ type WorkspaceProps = {
   initialTasks: Task[];
   initialSubtasks: Subtask[];
   initialShiftLabels: ShiftLabel[];
+  initialEventLabels: EventLabel[];
   initialScheduleEntries: ScheduleEntry[];
   initialRecurringTemplates: RecurringTaskTemplate[];
   workspace: { name: string; icon: string; unassignedTaskCount: number };
@@ -103,6 +118,7 @@ export function Workspace({
   initialTasks,
   initialSubtasks,
   initialShiftLabels,
+  initialEventLabels,
   initialScheduleEntries,
   initialRecurringTemplates,
   workspace,
@@ -115,6 +131,8 @@ export function Workspace({
   const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks);
   const [shiftLabels, setShiftLabels] =
     useState<ShiftLabel[]>(initialShiftLabels);
+  const [eventLabels, setEventLabels] =
+    useState<EventLabel[]>(initialEventLabels);
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>(
     initialScheduleEntries,
   );
@@ -128,8 +146,7 @@ export function Workspace({
     initialTasks[0]?.id ?? "",
   );
   const [selectedScheduleEntryId, setSelectedScheduleEntryId] = useState<string>(
-    () =>
-      initialScheduleEntries.find((entry) => entry.kind === "event")?.id ?? "",
+    () => initialScheduleEntries[0]?.id ?? "",
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [dueUrgencyFilter, setDueUrgencyFilter] = useState<TaskDueUrgency | null>(
@@ -143,6 +160,15 @@ export function Workspace({
   const [addEventDialogKey, setAddEventDialogKey] = useState(0);
   const [addShiftOpen, setAddShiftOpen] = useState(false);
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
+  const [manageEventLabelsOpen, setManageEventLabelsOpen] = useState(false);
+  const [editEntryOpen, setEditEntryOpen] = useState(false);
+  const [editEntryKey, setEditEntryKey] = useState(0);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    null,
+  );
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const [scheduleGridMode, setScheduleGridMode] =
+    useState<ScheduleGridMode>("week");
   const [scheduleDate, setScheduleDate] = useState(() => startOfDay(new Date()));
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -262,6 +288,7 @@ export function Workspace({
 
   const selectProject = useCallback((projectId: string) => {
     setSelectedProjectId(projectId);
+    setSelectedTemplateId(null);
     setSearchQuery("");
     setDueUrgencyFilter(null);
   }, []);
@@ -273,6 +300,7 @@ export function Workspace({
 
   const selectTask = useCallback((id: string) => {
     setSelectedTaskId(id);
+    setSelectedTemplateId(null);
   }, []);
 
   const selectTaskFromSchedule = useCallback(
@@ -338,6 +366,7 @@ export function Workspace({
         startsAt: input.startsAt,
         endsAt: input.endsAt,
         allDay: input.allDay,
+        eventLabelId: input.eventLabelId,
       });
       if (error || !data) {
         setActionError(error ?? "イベントの追加に失敗しました。");
@@ -356,13 +385,18 @@ export function Workspace({
 
   const selectScheduleEntry = useCallback((entryId: string) => {
     setSelectedScheduleEntryId(entryId);
+    setEditEntryKey((key) => key + 1);
+    setEditEntryOpen(true);
   }, []);
 
   const updateScheduleEntryHandler = useCallback(
     async (
       entryId: string,
       patch: Partial<
-        Pick<ScheduleEntry, "title" | "startsAt" | "endsAt" | "allDay">
+        Pick<
+          ScheduleEntry,
+          "title" | "startsAt" | "endsAt" | "allDay" | "eventLabelId"
+        >
       >,
     ) => {
       const { data, error } = await updateScheduleEntry(supabase, entryId, patch);
@@ -394,8 +428,7 @@ export function Workspace({
         const next = prev.filter((entry) => entry.id !== entryId);
         setSelectedScheduleEntryId((currentId) => {
           if (currentId !== entryId) return currentId;
-          const events = next.filter((entry) => entry.kind === "event");
-          return events[0]?.id ?? "";
+          return next[0]?.id ?? "";
         });
         return next;
       });
@@ -432,7 +465,95 @@ export function Workspace({
 
       await refreshTasks();
       setRecurringTemplates((prev) => [...prev, template]);
+      setSelectedProjectId(RECURRING_PROJECT_ID);
+      setSelectedTemplateId(null);
       setActionError(null);
+    },
+    [refreshTasks, supabase],
+  );
+
+  const updateRecurringTemplateHandler = useCallback(
+    async (
+      templateId: string,
+      patch: Partial<
+        Pick<
+          RecurringTaskTemplate,
+          | "title"
+          | "defaultStatusId"
+          | "recurrencePreset"
+          | "weekdays"
+          | "monthDay"
+          | "nth"
+          | "weekday"
+          | "endType"
+          | "endDate"
+          | "endCount"
+        >
+      >,
+    ) => {
+      const { data, error } = await updateRecurringTemplate(
+        supabase,
+        templateId,
+        patch,
+      );
+      if (error || !data) {
+        setActionError(error ?? "定期タスクルールの更新に失敗しました。");
+        return;
+      }
+
+      setRecurringTemplates((prev) =>
+        prev.map((template) => (template.id === templateId ? data : template)),
+      );
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const genResult = await generateRecurringInstances(supabase, user.id);
+      if (genResult.error) {
+        setActionError(genResult.error);
+        return;
+      }
+
+      await refreshTasks();
+      setActionError(null);
+    },
+    [refreshTasks, supabase],
+  );
+
+  const applyRecurringTemplateToFuture = useCallback(
+    async (templateId: string) => {
+      setApplyingTemplate(true);
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+        if (authError || !user) {
+          setActionError(authError?.message ?? "ログインセッションが切れました。");
+          return;
+        }
+
+        const result = await regenerateFutureInstancesForTemplate(
+          supabase,
+          user.id,
+          templateId,
+        );
+        if (result.error) {
+          setActionError(result.error);
+          return;
+        }
+
+        await refreshTasks();
+        setActionError(null);
+      } finally {
+        setApplyingTemplate(false);
+      }
     },
     [refreshTasks, supabase],
   );
@@ -506,6 +627,71 @@ export function Workspace({
 
       setActionError(null);
       setShiftLabels((prev) => prev.filter((label) => label.id !== labelId));
+    },
+    [supabase],
+  );
+
+  const addEventLabel = useCallback(
+    async (value: EventLabelFormValue) => {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const nextSortOrder =
+        eventLabels.reduce((max, label) => Math.max(max, label.sortOrder), 0) + 1;
+
+      const { data, error } = await insertEventLabel(supabase, user.id, {
+        name: value.name,
+        colorToken: value.colorToken,
+        sortOrder: nextSortOrder,
+      });
+      if (error || !data) {
+        setActionError(error ?? "イベントラベルの追加に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setEventLabels((prev) =>
+        [...prev, data].sort((a, b) => a.sortOrder - b.sortOrder),
+      );
+    },
+    [eventLabels, supabase],
+  );
+
+  const updateEventLabelHandler = useCallback(
+    async (labelId: string, value: EventLabelFormValue) => {
+      const { data, error } = await updateEventLabel(supabase, labelId, {
+        name: value.name,
+        colorToken: value.colorToken,
+      });
+      if (error || !data) {
+        setActionError(error ?? "イベントラベルの更新に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setEventLabels((prev) =>
+        prev.map((label) => (label.id === labelId ? data : label)),
+      );
+    },
+    [supabase],
+  );
+
+  const archiveEventLabelHandler = useCallback(
+    async (labelId: string) => {
+      const { error } = await archiveEventLabel(supabase, labelId);
+      if (error) {
+        setActionError(error);
+        return;
+      }
+
+      setActionError(null);
+      setEventLabels((prev) => prev.filter((label) => label.id !== labelId));
     },
     [supabase],
   );
@@ -622,8 +808,20 @@ export function Workspace({
   const selectedProjectLabel =
     selectedProjectId === UNASSIGNED_PROJECT_ID
       ? UNASSIGNED_PROJECT_LABEL
-      : (projects.find((project) => project.id === selectedProjectId)?.name ??
-        UNASSIGNED_PROJECT_LABEL);
+      : selectedProjectId === RECURRING_PROJECT_ID
+        ? RECURRING_PROJECT_LABEL
+        : (projects.find((project) => project.id === selectedProjectId)?.name ??
+          UNASSIGNED_PROJECT_LABEL);
+
+  const regularTasks = useMemo(
+    () => tasks.filter((task) => task.recurringTemplateId == null),
+    [tasks],
+  );
+
+  const recurringTasks = useMemo(
+    () => tasks.filter((task) => task.recurringTemplateId != null),
+    [tasks],
+  );
 
   const isSearchActive = normalizeTaskSearchQuery(searchQuery) !== "";
 
@@ -638,10 +836,13 @@ export function Workspace({
       );
     }
     if (selectedProjectId === UNASSIGNED_PROJECT_ID) {
-      return tasks.filter((task) => task.projectId === null);
+      return regularTasks.filter((task) => task.projectId === null);
     }
-    return tasks.filter((task) => task.projectId === selectedProjectId);
-  }, [dueUrgencyFilter, isSearchActive, selectedProjectId, tasks]);
+    if (selectedProjectId === RECURRING_PROJECT_ID) {
+      return recurringTasks;
+    }
+    return regularTasks.filter((task) => task.projectId === selectedProjectId);
+  }, [dueUrgencyFilter, isSearchActive, recurringTasks, regularTasks, selectedProjectId, tasks]);
 
   const listPaneTitle = useMemo(() => {
     if (isSearchActive) {
@@ -659,8 +860,11 @@ export function Workspace({
     if (dueUrgencyFilter === "soon") {
       return "期限間近（明日が期限）のタスクはありません。";
     }
+    if (selectedProjectId === RECURRING_PROJECT_ID) {
+      return "定期タスクの各回がありません。ヘッダーの + からルールを追加できます。";
+    }
     return undefined;
-  }, [dueUrgencyFilter]);
+  }, [dueUrgencyFilter, selectedProjectId]);
 
   const orderedStatuses = useMemo(
     () => sortStatusesForTaskList(statuses),
@@ -755,14 +959,14 @@ export function Workspace({
   );
 
   const dueAlertCounts = useMemo(
-    () => countTasksByDueUrgency(tasks),
-    [tasks],
+    () => countTasksByDueUrgency(regularTasks),
+    [regularTasks],
   );
 
   const displayProjects = useMemo(
     () =>
       projects.map((project) => {
-        const projectTasks = tasks.filter(
+        const projectTasks = regularTasks.filter(
           (task) => task.projectId === project.id,
         );
         return {
@@ -771,17 +975,33 @@ export function Workspace({
           taskStatusCounts: countTasksByStatus(projectTasks, statuses),
         };
       }),
-    [projects, tasks, statuses],
+    [projects, regularTasks, statuses],
   );
 
   const unassignedTaskStatusCounts = useMemo(
     () =>
       countTasksByStatus(
-        tasks.filter((task) => task.projectId === null),
+        regularTasks.filter((task) => task.projectId === null),
         statuses,
       ),
-    [tasks, statuses],
+    [regularTasks, statuses],
   );
+
+  const recurringTaskStatusCounts = useMemo(
+    () => countTasksByStatus(recurringTasks, statuses),
+    [recurringTasks, statuses],
+  );
+
+  const activeRecurringTemplate = useMemo(() => {
+    if (!selectedTemplateId) return undefined;
+    return recurringTemplates.find((template) => template.id === selectedTemplateId);
+  }, [recurringTemplates, selectedTemplateId]);
+
+  const activeTaskRecurringTemplate = activeTask?.recurringTemplateId
+    ? recurringTemplates.find(
+        (template) => template.id === activeTask.recurringTemplateId,
+      )
+    : undefined;
 
   const scheduleTasks = useMemo(
     () =>
@@ -817,18 +1037,26 @@ export function Workspace({
     return counts;
   }, [scheduleEntries]);
 
-  const eventEntries = useMemo(
+  const eventLabelUsageCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const entry of scheduleEntries) {
+      if (entry.eventLabelId) {
+        counts[entry.eventLabelId] = (counts[entry.eventLabelId] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [scheduleEntries]);
+
+  const sortedScheduleEntries = useMemo(
     () =>
-      scheduleEntries
-        .filter((entry) => entry.kind === "event")
-        .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      [...scheduleEntries].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
     [scheduleEntries],
   );
 
-  const activeEvent =
-    eventEntries.find((entry) => entry.id === selectedScheduleEntryId) ??
-    eventEntries[0];
-  const activeEventId = activeEvent?.id ?? "";
+  const activeScheduleEntry =
+    sortedScheduleEntries.find((entry) => entry.id === selectedScheduleEntryId) ??
+    sortedScheduleEntries[0];
+  const activeScheduleEntryId = activeScheduleEntry?.id ?? "";
 
   return (
     <SidebarProvider
@@ -843,6 +1071,7 @@ export function Workspace({
         dueUrgencyFilter={dueUrgencyFilter}
         onSelectDueUrgencyFilter={selectDueUrgencyFilter}
         unassignedTaskStatusCounts={unassignedTaskStatusCounts}
+        recurringTaskStatusCounts={recurringTaskStatusCounts}
         selectedProjectId={selectedProjectId}
         onSelectProject={selectProject}
         onReorderProjects={reorderProjects}
@@ -901,7 +1130,12 @@ export function Workspace({
           open={addEventOpen}
           onOpenChange={setAddEventOpen}
           defaultDate={format(scheduleDate, "yyyy-MM-dd")}
+          labels={eventLabels}
           onSave={addEvent}
+          onManageLabels={() => {
+            setAddEventOpen(false);
+            setManageEventLabelsOpen(true);
+          }}
         />
         <AddShiftDialog
           open={addShiftOpen}
@@ -922,6 +1156,28 @@ export function Workspace({
           onUpdate={updateShiftLabelHandler}
           onArchive={archiveShiftLabelHandler}
         />
+        <EventLabelSettings
+          open={manageEventLabelsOpen}
+          onOpenChange={setManageEventLabelsOpen}
+          labels={eventLabels}
+          usageCounts={eventLabelUsageCounts}
+          onAdd={addEventLabel}
+          onUpdate={updateEventLabelHandler}
+          onArchive={archiveEventLabelHandler}
+        />
+        <EditScheduleEntryDialog
+          key={editEntryKey}
+          entry={activeScheduleEntry}
+          eventLabels={eventLabels}
+          open={editEntryOpen}
+          onOpenChange={setEditEntryOpen}
+          onUpdateEntry={updateScheduleEntryHandler}
+          onDeleteEntry={deleteScheduleEntryHandler}
+          onManageLabels={() => {
+            setEditEntryOpen(false);
+            setManageEventLabelsOpen(true);
+          }}
+        />
         <div className="flex min-h-0 flex-1">
           {view === "tasks" ? (
             <>
@@ -936,31 +1192,42 @@ export function Workspace({
                 onDeleteTask={deleteTask}
                 emptyMessage={listPaneEmptyMessage}
               />
-              <TaskHubPane
-                task={activeTask}
-                projects={projects}
-                statuses={statuses}
-                subtasks={activeSubtasks}
-                onAddSubtask={addSubtask}
-                onUpdateSubtask={updateSubtaskHandler}
-                onDeleteSubtask={deleteSubtaskHandler}
-                onUpdateTask={updateTask}
-              />
+              {activeRecurringTemplate ? (
+                <RecurringTaskTemplateHubPane
+                  template={activeRecurringTemplate}
+                  statuses={statuses}
+                  applying={applyingTemplate}
+                  onBack={() => setSelectedTemplateId(null)}
+                  onUpdateTemplate={updateRecurringTemplateHandler}
+                  onApplyToFuture={applyRecurringTemplateToFuture}
+                />
+              ) : (
+                <TaskHubPane
+                  task={activeTask}
+                  projects={projects}
+                  statuses={statuses}
+                  subtasks={activeSubtasks}
+                  onAddSubtask={addSubtask}
+                  onUpdateSubtask={updateSubtaskHandler}
+                  onDeleteSubtask={deleteSubtaskHandler}
+                  onUpdateTask={updateTask}
+                  recurringTemplate={activeTaskRecurringTemplate}
+                  onEditRecurringTemplate={setSelectedTemplateId}
+                />
+              )}
             </>
           ) : (
-            <>
-              <ScheduleEntryListPane
-                entries={eventEntries}
-                selectedEntryId={activeEventId}
-                onSelectEntry={selectScheduleEntry}
-                onDeleteEntry={deleteScheduleEntryHandler}
-              />
-              <ScheduleEntryHubPane
-                entry={activeEvent}
-                onUpdateEntry={updateScheduleEntryHandler}
-                onDeleteEntry={deleteScheduleEntryHandler}
-              />
-            </>
+            <ScheduleWeekView
+              entries={sortedScheduleEntries}
+              shiftLabels={shiftLabels}
+              eventLabels={eventLabels}
+              mode={scheduleGridMode}
+              onModeChange={setScheduleGridMode}
+              focusDate={scheduleDate}
+              onFocusDateChange={setScheduleDay}
+              selectedEntryId={activeScheduleEntryId}
+              onSelectEntry={selectScheduleEntry}
+            />
           )}
           <SubtaskPane
             scheduleSelectedDate={scheduleDate}

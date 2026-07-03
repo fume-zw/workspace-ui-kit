@@ -34,3 +34,62 @@ export function shiftColorDotClass(token: string): string {
     SHIFT_LABEL_COLORS[0].dotClass
   );
 }
+
+type BlockColorClasses = {
+  bg: string;
+  border: string;
+  text: string;
+};
+
+const SHIFT_BLOCK_CLASS_MAP: Record<string, BlockColorClasses> = {
+  primary: {
+    bg: "bg-primary/15",
+    border: "border-l-primary",
+    text: "text-primary",
+  },
+  "chart-1": {
+    bg: "bg-chart-1/15",
+    border: "border-l-chart-1",
+    text: "text-chart-1",
+  },
+  "chart-2": {
+    bg: "bg-chart-2/20",
+    border: "border-l-chart-2",
+    text: "text-chart-2",
+  },
+  "chart-3": {
+    bg: "bg-chart-3/15",
+    border: "border-l-chart-3",
+    text: "text-chart-3",
+  },
+  "calendar-saturday": {
+    bg: "bg-calendar-saturday/15",
+    border: "border-l-calendar-saturday",
+    text: "text-calendar-saturday",
+  },
+  "muted-foreground": {
+    bg: "bg-muted",
+    border: "border-l-muted-foreground",
+    text: "text-muted-foreground",
+  },
+};
+
+/** 週ビューの勤務ブロック用クラス。 */
+export function shiftColorBlockClasses(token: string): BlockColorClasses {
+  return SHIFT_BLOCK_CLASS_MAP[token] ?? SHIFT_BLOCK_CLASS_MAP.primary;
+}
+
+/** ラベル未設定イベントの既定ブロック用クラス。 */
+export const EVENT_BLOCK_CLASSES: BlockColorClasses = {
+  bg: "bg-chart-4/15",
+  border: "border-l-chart-4",
+  text: "text-foreground",
+};
+
+/** イベントの色。ラベルがあればその色、なければ既定。 */
+export function eventColorBlockClasses(
+  colorToken: string | null | undefined,
+): BlockColorClasses {
+  if (!colorToken) return EVENT_BLOCK_CLASSES;
+  return SHIFT_BLOCK_CLASS_MAP[colorToken] ?? EVENT_BLOCK_CLASSES;
+}

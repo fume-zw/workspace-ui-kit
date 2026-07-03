@@ -83,6 +83,16 @@ export const shiftLabelSchema = z.object({
 });
 export type ShiftLabel = z.infer<typeof shiftLabelSchema>;
 
+/** イベント用ラベル（会議・私用・通院 等）のマスター。名前 + 色のみ。 */
+export const eventLabelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  colorToken: z.string(),
+  sortOrder: z.number(),
+  archivedAt: z.string().nullable(),
+});
+export type EventLabel = z.infer<typeof eventLabelSchema>;
+
 export const SCHEDULE_ENTRY_KINDS = ["event", "shift"] as const;
 export type ScheduleEntryKind = (typeof SCHEDULE_ENTRY_KINDS)[number];
 
@@ -95,6 +105,7 @@ export const scheduleEntrySchema = z.object({
   endsAt: z.string(),
   allDay: z.boolean(),
   shiftLabelId: z.string().nullable(),
+  eventLabelId: z.string().nullable().default(null),
   timeOverridden: z.boolean(),
 });
 export type ScheduleEntry = z.infer<typeof scheduleEntrySchema>;

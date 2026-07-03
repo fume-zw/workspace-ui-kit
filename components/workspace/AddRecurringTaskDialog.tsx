@@ -30,29 +30,15 @@ import {
   type RecurrenceEndType,
   type RecurrencePreset,
 } from "@/lib/schema";
+import {
+  END_TYPE_OPTIONS,
+  NTH_OPTIONS,
+  PRESET_OPTIONS,
+  WEEKDAY_OPTIONS,
+  endTypeLabel,
+  presetLabel,
+} from "@/lib/recurring-options";
 import { type TaskStatusOption } from "@/lib/task-db";
-
-const WEEKDAY_OPTIONS = [
-  { value: 0, label: "日" },
-  { value: 1, label: "月" },
-  { value: 2, label: "火" },
-  { value: 3, label: "水" },
-  { value: 4, label: "木" },
-  { value: 5, label: "金" },
-  { value: 6, label: "土" },
-] as const;
-
-const PRESET_OPTIONS: { value: RecurrencePreset; label: string }[] = [
-  { value: "daily", label: "毎日" },
-  { value: "weekly", label: "毎週" },
-  { value: "monthly_date", label: "毎月（同日）" },
-];
-
-const END_TYPE_OPTIONS: { value: RecurrenceEndType; label: string }[] = [
-  { value: "never", label: "終了なし" },
-  { value: "until_date", label: "終了日まで" },
-  { value: "count", label: "回数で終了" },
-];
 
 export type NewRecurringTaskInput = {
   title: string;
@@ -60,6 +46,8 @@ export type NewRecurringTaskInput = {
   recurrencePreset: RecurrencePreset;
   weekdays: number[];
   monthDay: number | null;
+  nth: number | null;
+  weekday: number | null;
   endType: RecurrenceEndType;
   endDate: string | null;
   endCount: number | null;
@@ -71,6 +59,8 @@ type RecurringDraft = {
   recurrencePreset: RecurrencePreset;
   weekdays: number[];
   monthDay: string;
+  nth: number;
+  weekday: number;
   endType: RecurrenceEndType;
   endDate: string;
   endCount: string;
@@ -91,6 +81,8 @@ function createDraft(defaultStatusId: string): RecurringDraft {
     recurrencePreset: "weekly",
     weekdays: [1],
     monthDay: "1",
+    nth: 1,
+    weekday: 1,
     endType: "never",
     endDate: "",
     endCount: "",
@@ -128,12 +120,16 @@ function toNewRecurringTaskInput(draft: RecurringDraft): NewRecurringTaskInput |
     return null;
   }
 
+  const isNthWeekday = draft.recurrencePreset === "monthly_nth_weekday";
+
   return {
     title,
     defaultStatusId: draft.statusId,
     recurrencePreset: draft.recurrencePreset,
     weekdays: draft.recurrencePreset === "weekly" ? [...draft.weekdays].sort() : [],
     monthDay,
+    nth: isNthWeekday ? draft.nth : null,
+    weekday: isNthWeekday ? draft.weekday : null,
     endType: draft.endType,
     endDate: draft.endType === "until_date" ? draft.endDate : null,
     endCount,
@@ -228,7 +224,7 @@ export function AddRecurringTaskDialog({
                   }}
                 >
                   <SelectTrigger aria-label="繰り返し" className="w-full bg-card">
-                    <SelectValue />
+                    <SelectValue>{presetLabel(draft.recurrencePreset)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent align="start">
                     {PRESET_OPTIONS.map((option) => (
@@ -278,6 +274,63 @@ export function AddRecurringTaskDialog({
                   />
                 </InlineFieldRow>
               )}
+              {draft.recurrencePreset === "monthly_nth_weekday" && (
+                <InlineFieldRow label="第○曜日">
+                  <div className="flex gap-2">
+                    <Select
+                      value={String(draft.nth)}
+                      onValueChange={(value) => {
+                        if (!value) return;
+                        setDraft((current) => ({
+                          ...current,
+                          nth: Number(value),
+                        }));
+                      }}
+                    >
+                      <SelectTrigger aria-label="第何週" className="w-full bg-card">
+                        <SelectValue>
+                          {NTH_OPTIONS.find((option) => option.value === draft.nth)
+                            ?.label ?? "選択..."}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent align="start">
+                        {NTH_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={String(option.value)}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={String(draft.weekday)}
+                      onValueChange={(value) => {
+                        if (!value) return;
+                        setDraft((current) => ({
+                          ...current,
+                          weekday: Number(value),
+                        }));
+                      }}
+                    >
+                      <SelectTrigger aria-label="曜日" className="w-full bg-card">
+                        <SelectValue>
+                          {`${
+                            WEEKDAY_OPTIONS.find(
+                              (option) => option.value === draft.weekday,
+                            )?.label ?? ""
+                          }曜日`}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent align="start">
+                        {WEEKDAY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={String(option.value)}>
+                            {`${option.label}曜日`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </InlineFieldRow>
+              )}
               <InlineFieldRow label="終了条件">
                 <Select
                   value={draft.endType}
@@ -290,7 +343,7 @@ export function AddRecurringTaskDialog({
                   }}
                 >
                   <SelectTrigger aria-label="終了条件" className="w-full bg-card">
-                    <SelectValue />
+                    <SelectValue>{endTypeLabel(draft.endType)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent align="start">
                     {END_TYPE_OPTIONS.map((option) => (

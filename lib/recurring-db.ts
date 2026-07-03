@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { format, startOfDay } from "date-fns";
 
 import { listRecurrenceInstanceDates } from "@/lib/computed/recurring-instances";
 import {
@@ -189,6 +190,57 @@ export async function deactivateRecurringTemplate(
   return { error: error?.message ?? null };
 }
 
+async function generateInstancesForTemplate(
+  supabase: SupabaseClient,
+  userId: string,
+  template: RecurringTaskTemplate,
+  fromDate: Date,
+): Promise<{ created: number; error: string | null }> {
+  const { data: existingRows, error: existingError } = await supabase
+    .from("tasks")
+    .select("recurrence_instance_date")
+    .eq("recurring_template_id", template.id);
+
+  if (existingError) {
+    return { created: 0, error: existingError.message };
+  }
+
+  const existingDates = new Set(
+    (existingRows ?? [])
+      .map((row) => row.recurrence_instance_date as string | null)
+      .filter((value): value is string => value != null),
+  );
+
+  const instanceDates = listRecurrenceInstanceDates(
+    template,
+    fromDate,
+    undefined,
+    existingDates.size,
+  ).filter((dateKey) => !existingDates.has(dateKey));
+
+  if (instanceDates.length === 0) {
+    return { created: 0, error: null };
+  }
+
+  const rows = instanceDates.map((dateKey) => ({
+    user_id: userId,
+    title: template.title,
+    status_id: template.defaultStatusId,
+    due_date: dateKey,
+    project_id: null,
+    recurring_template_id: template.id,
+    recurrence_instance_date: dateKey,
+  }));
+
+  const { error: insertError } = await supabase.from("tasks").insert(rows);
+
+  if (insertError) {
+    return { created: 0, error: insertError.message };
+  }
+
+  return { created: instanceDates.length, error: null };
+}
+
 /**
  * アクティブなテンプレートから先 N 週分のタスク行を冪等に補充する。
  * 既存の (template_id, instance_date) はスキップする。
@@ -213,48 +265,63 @@ export async function generateRecurringInstances(
   let created = 0;
 
   for (const template of activeTemplates) {
-    const { data: existingRows, error: existingError } = await supabase
-      .from("tasks")
-      .select("recurrence_instance_date")
-      .eq("recurring_template_id", template.id);
-
-    if (existingError) {
-      return { created, error: existingError.message };
-    }
-
-    const existingDates = new Set(
-      (existingRows ?? [])
-        .map((row) => row.recurrence_instance_date as string | null)
-        .filter((value): value is string => value != null),
-    );
-
-    const instanceDates = listRecurrenceInstanceDates(
+    const result = await generateInstancesForTemplate(
+      supabase,
+      userId,
       template,
       fromDate,
-      undefined,
-      existingDates.size,
-    ).filter((dateKey) => !existingDates.has(dateKey));
-
-    if (instanceDates.length === 0) continue;
-
-    const rows = instanceDates.map((dateKey) => ({
-      user_id: userId,
-      title: template.title,
-      status_id: template.defaultStatusId,
-      due_date: dateKey,
-      project_id: null,
-      recurring_template_id: template.id,
-      recurrence_instance_date: dateKey,
-    }));
-
-    const { error: insertError } = await supabase.from("tasks").insert(rows);
-
-    if (insertError) {
-      return { created, error: insertError.message };
+    );
+    if (result.error) {
+      return { created, error: result.error };
     }
-
-    created += instanceDates.length;
+    created += result.created;
   }
 
   return { created, error: null };
+}
+
+/**
+ * 本日以降の生成済み各回を削除し、テンプレートの現行ルールで再生成する。
+ * 個別編集は失われる（Grill 合意の「以降に反映」）。
+ */
+export async function regenerateFutureInstancesForTemplate(
+  supabase: SupabaseClient,
+  userId: string,
+  templateId: string,
+  fromDate = new Date(),
+): Promise<{ deleted: number; created: number; error: string | null }> {
+  const todayKey = format(startOfDay(fromDate), "yyyy-MM-dd");
+
+  const { data: deletedRows, error: deleteError } = await supabase
+    .from("tasks")
+    .delete()
+    .eq("recurring_template_id", templateId)
+    .gte("recurrence_instance_date", todayKey)
+    .select("id");
+
+  if (deleteError) {
+    return { deleted: 0, created: 0, error: deleteError.message };
+  }
+
+  const deleted = deletedRows?.length ?? 0;
+
+  const { data: templates, error: templateError } =
+    await fetchRecurringTemplates(supabase);
+  if (templateError || !templates) {
+    return { deleted, created: 0, error: templateError };
+  }
+
+  const template = templates.find((item) => item.id === templateId);
+  if (!template?.active) {
+    return { deleted, created: 0, error: null };
+  }
+
+  const { created, error } = await generateInstancesForTemplate(
+    supabase,
+    userId,
+    template,
+    fromDate,
+  );
+
+  return { deleted, created, error };
 }

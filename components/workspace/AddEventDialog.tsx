@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { Settings2 } from "lucide-react";
 
 import { InlineDateField, InlineFieldRow } from "@/components/primitives";
 import {
   buildAllDayEventRange,
   buildTimedEventRange,
 } from "@/lib/computed/schedule-datetime";
+import { shiftColorDotClass } from "@/lib/schedule-colors";
+import { type EventLabel } from "@/lib/schema";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,12 +27,22 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const NO_LABEL_VALUE = "__none__";
 
 export type NewEventInput = {
   title: string;
   startsAt: string;
   endsAt: string;
   allDay: boolean;
+  eventLabelId: string | null;
 };
 
 type EventDraft = {
@@ -37,13 +51,16 @@ type EventDraft = {
   startTime: string;
   endTime: string;
   allDay: boolean;
+  eventLabelId: string | null;
 };
 
 type AddEventDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultDate?: string;
+  labels: EventLabel[];
   onSave: (input: NewEventInput) => void | Promise<void>;
+  onManageLabels: () => void;
 };
 
 function todayDateKey(): string {
@@ -61,6 +78,7 @@ function createDraft(defaultDate?: string): EventDraft {
     startTime: "09:00",
     endTime: "10:00",
     allDay: false,
+    eventLabelId: null,
   };
 }
 
@@ -70,7 +88,7 @@ function toNewEventInput(draft: EventDraft): NewEventInput | null {
 
   if (draft.allDay) {
     const range = buildAllDayEventRange(draft.date);
-    return { title, ...range, allDay: true };
+    return { title, ...range, allDay: true, eventLabelId: draft.eventLabelId };
   }
 
   if (!draft.startTime || !draft.endTime) return null;
@@ -78,16 +96,20 @@ function toNewEventInput(draft: EventDraft): NewEventInput | null {
   const range = buildTimedEventRange(draft.date, draft.startTime, draft.endTime);
   if (!range) return null;
 
-  return { title, ...range, allDay: false };
+  return { title, ...range, allDay: false, eventLabelId: draft.eventLabelId };
 }
 
 export function AddEventDialog({
   open,
   onOpenChange,
   defaultDate,
+  labels,
   onSave,
+  onManageLabels,
 }: AddEventDialogProps) {
   const [draft, setDraft] = useState<EventDraft>(() => createDraft(defaultDate));
+
+  const selectedLabel = labels.find((label) => label.id === draft.eventLabelId);
 
   const handleSave = async () => {
     const input = toNewEventInput(draft);
@@ -120,6 +142,66 @@ export function AddEventDialog({
                   placeholder="タイトルを入力"
                   aria-label="タイトル"
                 />
+              </InlineFieldRow>
+              <InlineFieldRow label="ラベル">
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={draft.eventLabelId ?? NO_LABEL_VALUE}
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      setDraft((current) => ({
+                        ...current,
+                        eventLabelId: value === NO_LABEL_VALUE ? null : value,
+                      }));
+                    }}
+                  >
+                    <SelectTrigger aria-label="イベントラベル" className="w-full bg-card">
+                      <SelectValue>
+                        {selectedLabel ? (
+                          <span className="flex items-center gap-2">
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                "size-3 rounded-full",
+                                shiftColorDotClass(selectedLabel.colorToken),
+                              )}
+                            />
+                            {selectedLabel.name}
+                          </span>
+                        ) : (
+                          "ラベルなし"
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      <SelectItem value={NO_LABEL_VALUE}>ラベルなし</SelectItem>
+                      {labels.map((label) => (
+                        <SelectItem key={label.id} value={label.id}>
+                          <span className="flex items-center gap-2">
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                "size-3 rounded-full",
+                                shiftColorDotClass(label.colorToken),
+                              )}
+                            />
+                            {label.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={onManageLabels}
+                    aria-label="イベントラベルを管理"
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <Settings2 />
+                  </Button>
+                </div>
               </InlineFieldRow>
               <InlineFieldRow label="日付">
                 <InlineDateField
