@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { workspaceSchema } from "@/lib/schema";
+import { generateRecurringInstances, fetchRecurringTemplates } from "@/lib/recurring-db";
+import { fetchScheduleData } from "@/lib/schedule-db";
 import {
   fetchWorkspaceData,
   pickDefaultStatusId,
@@ -32,9 +34,41 @@ export default async function Page() {
     );
   }
 
-  const { data, error } = await fetchWorkspaceData(supabase);
+  const genResult = await generateRecurringInstances(supabase, user.id);
+  if (genResult.error) {
+    return (
+      <main className="flex min-h-full flex-1 items-center justify-center px-4 py-10">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle>定期タスクの生成に失敗しました</CardTitle>
+            <CardDescription>
+              スケジュール用マイグレーションが未適用の可能性があります。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-destructive">
+            {genResult.error}
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
-  if (error || !data) {
+  const [workspaceResult, scheduleResult, templatesResult] = await Promise.all([
+    fetchWorkspaceData(supabase),
+    fetchScheduleData(supabase),
+    fetchRecurringTemplates(supabase),
+  ]);
+
+  const error =
+    workspaceResult.error ??
+    scheduleResult.error ??
+    templatesResult.error ??
+    null;
+  const data = workspaceResult.data;
+  const scheduleData = scheduleResult.data;
+  const recurringTemplates = templatesResult.data;
+
+  if (error || !data || !scheduleData || !recurringTemplates) {
     return (
       <main className="flex min-h-full flex-1 items-center justify-center px-4 py-10">
         <Card className="w-full max-w-lg">
@@ -74,6 +108,9 @@ export default async function Page() {
       initialProjects={data.projects}
       initialTasks={data.tasks}
       initialSubtasks={data.subtasks}
+      initialShiftLabels={scheduleData.shiftLabels}
+      initialScheduleEntries={scheduleData.scheduleEntries}
+      initialRecurringTemplates={recurringTemplates}
       workspace={wsResult.data}
     />
   );

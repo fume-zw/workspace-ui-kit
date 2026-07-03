@@ -14,6 +14,9 @@ import { z } from "zod";
 /** Pane 1「未割当」行の仮想 ID。DB 上は `project_id IS NULL` に対応する。 */
 export const UNASSIGNED_PROJECT_ID = "__unassigned__" as const;
 
+/** Pane 1「定期タスク」固定行の仮想 ID。DB 上は `recurring_template_id IS NOT NULL` に対応する。 */
+export const RECURRING_PROJECT_ID = "__recurring__" as const;
+
 /** プロジェクト 1 件。Pane 1 のフラット Sidebar に表示する単位。 */
 export const projectSchema = z.object({
   id: z.string(),
@@ -44,6 +47,8 @@ export const taskSchema = z.object({
   statusLabel: z.string(),
   projectId: z.string().nullable(),
   dueDate: z.string().nullable(),
+  recurringTemplateId: z.string().nullable().default(null),
+  recurrenceInstanceDate: z.string().nullable().default(null),
 });
 export type Task = z.infer<typeof taskSchema>;
 
@@ -58,6 +63,74 @@ export const subtaskSchema = z.object({
   sortOrder: z.number(),
 });
 export type Subtask = z.infer<typeof subtaskSchema>;
+
+// ===== スケジュール: 勤務ラベル・予定エントリ =====
+
+export const SHIFT_LABEL_DISPLAY_TYPES = ["time_block", "all_day_marker"] as const;
+export type ShiftLabelDisplayType = (typeof SHIFT_LABEL_DISPLAY_TYPES)[number];
+
+/** 勤務ラベル（採血当番・当直・休み 等）のマスター。 */
+export const shiftLabelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  displayType: z.enum(SHIFT_LABEL_DISPLAY_TYPES),
+  defaultStartTime: z.string().nullable(),
+  defaultEndTime: z.string().nullable(),
+  endsNextDay: z.boolean(),
+  colorToken: z.string(),
+  sortOrder: z.number(),
+  archivedAt: z.string().nullable(),
+});
+export type ShiftLabel = z.infer<typeof shiftLabelSchema>;
+
+export const SCHEDULE_ENTRY_KINDS = ["event", "shift"] as const;
+export type ScheduleEntryKind = (typeof SCHEDULE_ENTRY_KINDS)[number];
+
+/** イベント予定・勤務予定 1 件。 */
+export const scheduleEntrySchema = z.object({
+  id: z.string(),
+  kind: z.enum(SCHEDULE_ENTRY_KINDS),
+  title: z.string(),
+  startsAt: z.string(),
+  endsAt: z.string(),
+  allDay: z.boolean(),
+  shiftLabelId: z.string().nullable(),
+  timeOverridden: z.boolean(),
+});
+export type ScheduleEntry = z.infer<typeof scheduleEntrySchema>;
+
+// ===== 定期タスク: 繰り返しテンプレート =====
+
+export const RECURRENCE_PRESETS = [
+  "daily",
+  "weekly",
+  "monthly_date",
+  "monthly_nth_weekday",
+] as const;
+export type RecurrencePreset = (typeof RECURRENCE_PRESETS)[number];
+
+export const RECURRENCE_END_TYPES = ["until_date", "count", "never"] as const;
+export type RecurrenceEndType = (typeof RECURRENCE_END_TYPES)[number];
+
+/** 定期タスクの繰り返しルール。各回は `tasks` 行として生成される。 */
+export const recurringTaskTemplateSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  defaultStatusId: z.string(),
+  recurrencePreset: z.enum(RECURRENCE_PRESETS),
+  weekdays: z.array(z.number()),
+  monthDay: z.number().nullable(),
+  nth: z.number().nullable(),
+  weekday: z.number().nullable(),
+  endType: z.enum(RECURRENCE_END_TYPES),
+  endDate: z.string().nullable(),
+  endCount: z.number().nullable(),
+  active: z.boolean(),
+});
+export type RecurringTaskTemplate = z.infer<typeof recurringTaskTemplateSchema>;
+
+/** ローリング生成の先読み週数（Grill 合意: 8 週）。 */
+export const RECURRING_INSTANCE_HORIZON_WEEKS = 8;
 
 // ===== Pane 1: 部署 → ポジション 階層（採用サンプル・Pane 3〜4 検証用に維持） =====
 

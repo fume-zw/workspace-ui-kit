@@ -44,7 +44,7 @@ export type WorkspaceData = {
 };
 
 const TASK_SELECT =
-  "id, title, due_date, project_id, status_id, task_statuses (code, label)";
+  "id, title, due_date, project_id, status_id, recurring_template_id, recurrence_instance_date, task_statuses (code, label)";
 
 type TaskStatusJoin = { code: TaskStatusCode; label: string };
 
@@ -54,6 +54,8 @@ type TaskRow = {
   due_date: string | null;
   project_id: string | null;
   status_id: string;
+  recurring_template_id: string | null;
+  recurrence_instance_date: string | null;
   task_statuses: TaskStatusJoin | TaskStatusJoin[] | null;
 };
 
@@ -89,6 +91,8 @@ function mapTaskRow(row: TaskRow): Task {
     statusId: row.status_id,
     statusCode: status?.code ?? "not_started",
     statusLabel: status?.label ?? "未着手",
+    recurringTemplateId: row.recurring_template_id,
+    recurrenceInstanceDate: row.recurrence_instance_date,
   };
 }
 

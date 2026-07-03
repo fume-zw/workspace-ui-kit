@@ -39,6 +39,9 @@ export const ARCHIVED_GROUP_LABEL = "アーカイブ済み";
 /** Pane 1 の `project_id = null` タスク向け仮想エントリ表示名。 */
 export const UNASSIGNED_PROJECT_LABEL = "未割当";
 
+/** Pane 1 の定期タスク固定行の表示名。 */
+export const RECURRING_PROJECT_LABEL = "定期タスク";
+
 // ===== Pane 3 ダッシュボードのセクション見出し（ADR-0014） =====
 
 export const PANE3_SECTION = {

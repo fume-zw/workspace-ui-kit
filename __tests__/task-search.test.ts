@@ -16,6 +16,8 @@ const task: Task = {
   statusLabel: "未着手",
   projectId: "proj-1",
   dueDate: null,
+  recurringTemplateId: null,
+  recurrenceInstanceDate: null,
 };
 
 const subtasks: Subtask[] = [

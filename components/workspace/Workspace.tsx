@@ -13,6 +13,9 @@ import { format, startOfDay } from "date-fns";
 
 import {
   type Project,
+  type RecurringTaskTemplate,
+  type ScheduleEntry,
+  type ShiftLabel,
   type Subtask,
   type Task,
   type TaskGroup,
@@ -57,6 +60,9 @@ type WorkspaceProps = {
   initialProjects: Project[];
   initialTasks: Task[];
   initialSubtasks: Subtask[];
+  initialShiftLabels: ShiftLabel[];
+  initialScheduleEntries: ScheduleEntry[];
+  initialRecurringTemplates: RecurringTaskTemplate[];
   workspace: { name: string; icon: string; unassignedTaskCount: number };
 };
 
@@ -66,8 +72,14 @@ export function Workspace({
   initialProjects,
   initialTasks,
   initialSubtasks,
+  initialShiftLabels: _initialShiftLabels,
+  initialScheduleEntries: _initialScheduleEntries,
+  initialRecurringTemplates: _initialRecurringTemplates,
   workspace,
 }: WorkspaceProps) {
+  void _initialShiftLabels;
+  void _initialScheduleEntries;
+  void _initialRecurringTemplates;
   const supabase = useMemo(() => createClient(), []);
 
   const [projects, setProjects] = useState<Project[]>(initialProjects);
