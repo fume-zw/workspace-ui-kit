@@ -12,7 +12,7 @@
 | Pane 1 | `PositionPane` → `ProjectPane` | `ProjectPane`（フラット `Project[]` + 未割当） | **実装済み** |
 | Pane 2 | `CandidateListPane` → `TaskListPane` | `TaskListPane`（選択プロジェクトのタスク一覧） | **実装済み** |
 | Pane 3 | `CandidateDashboardPane` → `TaskHubPane` | `TaskHubPane`（タスク詳細 + **下部サブタスクチェックリスト**） | **実装済み** |
-| Pane 4 | `CandidateDetailPane` → `SubtaskPane` | **`SubtaskPane` = スケジュール**（カレンダー + 期限タスクアジェンダ） | **実装済み** |
+| Pane 4 | `CandidateDetailPane` → `SubtaskPane` | **`SubtaskPane` = スケジュール**（カレンダー + **統合アジェンダ**：期限タスク・イベント・勤務を時刻順） | **実装済み** |
 
 > **注意:** コンポーネント名 `SubtaskPane` は歴史的経緯で残っているが、**責務はスケジュール**。サブタスク UI は Pane 3（`TaskHubPane`）内。
 
@@ -23,7 +23,8 @@
 | `Workspace.tsx` | 4 ペイン state の親。Pane 3 = 詳細+subtasks、Pane 4 = スケジュール |
 | `GlobalHeader.tsx` | パンくず（プロジェクト名 + タスク名） |
 | `SettingsDialog.tsx` | プロジェクト追加・削除 |
-| `WorkspaceScheduleDock.tsx` | Pane 4 カレンダー / アジェンダ部品 |
+| `WorkspaceScheduleDock.tsx` | Pane 4 カレンダー / 統合アジェンダ部品（`ScheduleDockMiniCalendar` / `ScheduleDockAgenda`） |
+| `ScheduleWeekView.tsx` | スケジュールビュー本体（週/日グリッド・終日帯・編集ダイアログ連携） |
 
 ## データ
 

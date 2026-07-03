@@ -2,7 +2,8 @@
 
 import { startOfDay } from "date-fns";
 
-import { type Project, type Task } from "@/lib/schema";
+import { type EventLabel, type Project, type ShiftLabel } from "@/lib/schema";
+import { type AgendaItem } from "@/lib/computed/schedule-agenda";
 import {
   ScheduleDockAgenda,
   ScheduleDockMiniCalendar,
@@ -13,9 +14,12 @@ type SubtaskPaneProps = {
   scheduleSelectedDate: Date;
   onScheduleDateChange: (date: Date) => void;
   taskDueDateCounts: ReadonlyMap<string, number>;
-  tasksOnScheduleDate: Task[];
+  agendaItems: AgendaItem[];
   projects: Project[];
+  shiftLabelsById: ReadonlyMap<string, ShiftLabel>;
+  eventLabelsById: ReadonlyMap<string, EventLabel>;
   onSelectTask: (taskId: string) => void;
+  onSelectEntry: (entryId: string) => void;
 };
 
 /** Pane 4: スケジュール（上部カレンダー + 下部アジェンダ）。常時表示。 */
@@ -23,9 +27,12 @@ export function SubtaskPane({
   scheduleSelectedDate,
   onScheduleDateChange,
   taskDueDateCounts,
-  tasksOnScheduleDate,
+  agendaItems,
   projects,
+  shiftLabelsById,
+  eventLabelsById,
   onSelectTask,
+  onSelectEntry,
 }: SubtaskPaneProps) {
   return (
     <aside className="flex h-full min-h-0 w-[400px] shrink-0 flex-col border-l border-border bg-background">
@@ -60,9 +67,12 @@ export function SubtaskPane({
         layout="panel"
         selectedDate={scheduleSelectedDate}
         onSelectDate={onScheduleDateChange}
-        tasksOnDay={tasksOnScheduleDate}
+        items={agendaItems}
         projects={projects}
+        shiftLabelsById={shiftLabelsById}
+        eventLabelsById={eventLabelsById}
         onSelectTask={onSelectTask}
+        onSelectEntry={onSelectEntry}
       />
     </aside>
   );

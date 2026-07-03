@@ -34,6 +34,7 @@ import {
   type TaskDueUrgency,
 } from "@/lib/computed/task-due-date";
 import { filterTasksBySearch, buildTaskSearchProjectGroups, normalizeTaskSearchQuery } from "@/lib/computed/task-search";
+import { buildDayAgenda } from "@/lib/computed/schedule-agenda";
 import { sortStatusesForTaskList } from "@/lib/task-status-ui";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -308,13 +309,26 @@ export function Workspace({
       const task = tasks.find((t) => t.id === taskId);
       setSelectedTaskId(taskId);
       if (task) {
-        setSelectedProjectId(task.projectId ?? UNASSIGNED_PROJECT_ID);
+        const isRecurring = task.recurringTemplateId != null;
+        setSelectedProjectId(
+          isRecurring
+            ? RECURRING_PROJECT_ID
+            : (task.projectId ?? UNASSIGNED_PROJECT_ID),
+        );
       }
+      setSelectedTemplateId(null);
       setSearchQuery("");
       setDueUrgencyFilter(null);
+      setView("tasks");
     },
     [tasks],
   );
+
+  /** アジェンダから予定をクリック: スケジュールビューに切替えて該当予定をハイライト選択（編集ダイアログは開かない）。 */
+  const focusScheduleEntry = useCallback((entryId: string) => {
+    setSelectedScheduleEntryId(entryId);
+    setView("schedule");
+  }, []);
 
   const addTask = useCallback(
     async (input: NewTaskInput) => {
@@ -1027,6 +1041,27 @@ export function Workspace({
       .sort((a, b) => a.title.localeCompare(b.title, "ja"));
   }, [scheduleTasks, scheduleDate]);
 
+  const shiftLabelsById = useMemo(
+    () => new Map(shiftLabels.map((label) => [label.id, label])),
+    [shiftLabels],
+  );
+
+  const eventLabelsById = useMemo(
+    () => new Map(eventLabels.map((label) => [label.id, label])),
+    [eventLabels],
+  );
+
+  const scheduleAgendaItems = useMemo(
+    () =>
+      buildDayAgenda(
+        format(scheduleDate, "yyyy-MM-dd"),
+        tasksOnScheduleDate,
+        scheduleEntries,
+        shiftLabelsById,
+      ),
+    [scheduleDate, tasksOnScheduleDate, scheduleEntries, shiftLabelsById],
+  );
+
   const shiftUsageCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const entry of scheduleEntries) {
@@ -1233,9 +1268,12 @@ export function Workspace({
             scheduleSelectedDate={scheduleDate}
             onScheduleDateChange={setScheduleDay}
             taskDueDateCounts={taskDueDateCounts}
-            tasksOnScheduleDate={tasksOnScheduleDate}
+            agendaItems={scheduleAgendaItems}
             projects={projects}
+            shiftLabelsById={shiftLabelsById}
+            eventLabelsById={eventLabelsById}
             onSelectTask={selectTaskFromSchedule}
+            onSelectEntry={focusScheduleEntry}
           />
         </div>
       </SidebarInset>

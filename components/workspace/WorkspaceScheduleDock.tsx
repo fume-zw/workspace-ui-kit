@@ -5,9 +5,18 @@ import { addDays, format, startOfDay } from "date-fns";
 import { ja } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { type Project, type Task } from "@/lib/schema";
+import {
+  type EventLabel,
+  type Project,
+  type ShiftLabel,
+  type Task,
+} from "@/lib/schema";
 import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
-import { taskStatusBadgeVariant } from "@/lib/task-status-ui";
+import { type AgendaItem } from "@/lib/computed/schedule-agenda";
+import {
+  eventColorBlockClasses,
+  shiftColorBlockClasses,
+} from "@/lib/schedule-colors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
@@ -20,6 +29,52 @@ function taskProjectLabel(task: Task, projects: Project[]): string {
     projects.find((project) => project.id === task.projectId)?.name ??
     UNASSIGNED_PROJECT_LABEL
   );
+}
+
+const AGENDA_KIND_LABEL: Record<AgendaItem["kind"], string> = {
+  task: "タスク",
+  event: "イベント",
+  shift: "勤務",
+};
+
+/** 行左端の色アクセント。週ビューと同じラベル色ロジックを共有する。 */
+function agendaAccentClass(
+  item: AgendaItem,
+  shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
+  eventLabelsById: ReadonlyMap<string, EventLabel>,
+): string {
+  if (item.kind === "task") return "border-l-muted-foreground";
+  if (item.kind === "shift") {
+    const token =
+      (item.entry.shiftLabelId &&
+        shiftLabelsById.get(item.entry.shiftLabelId)?.colorToken) ||
+      "primary";
+    return shiftColorBlockClasses(token).border;
+  }
+  const token = item.entry.eventLabelId
+    ? eventLabelsById.get(item.entry.eventLabelId)?.colorToken
+    : null;
+  return eventColorBlockClasses(token).border;
+}
+
+/** 行の補足テキスト（タスク=プロジェクト・ステータス / 予定=ラベル名）。 */
+function agendaSubtitle(
+  item: AgendaItem,
+  projects: Project[],
+  shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
+  eventLabelsById: ReadonlyMap<string, EventLabel>,
+): string | null {
+  if (item.kind === "task") {
+    return `${taskProjectLabel(item.task, projects)}・${item.task.statusLabel}`;
+  }
+  if (item.kind === "shift") {
+    return item.entry.shiftLabelId
+      ? (shiftLabelsById.get(item.entry.shiftLabelId)?.name ?? null)
+      : null;
+  }
+  return item.entry.eventLabelId
+    ? (eventLabelsById.get(item.entry.eventLabelId)?.name ?? null)
+    : null;
 }
 
 type ScheduleDockCalendarDayButtonProps = React.ComponentProps<
@@ -137,21 +192,28 @@ export function ScheduleDockMiniCalendar({
 type ScheduleDockAgendaProps = {
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
-  tasksOnDay: Task[];
-  /** プロジェクト名表示用（全プロジェクト横断リストのときの区別） */
+  /** 選択日の統合アジェンダ（タスク・イベント・勤務を時刻順に混在） */
+  items: AgendaItem[];
+  /** タスク補足のプロジェクト名表示用 */
   projects: Project[];
+  shiftLabelsById: ReadonlyMap<string, ShiftLabel>;
+  eventLabelsById: ReadonlyMap<string, EventLabel>;
   onSelectTask: (taskId: string) => void;
+  onSelectEntry: (entryId: string) => void;
   /** `dock`: 旧 Pane 2 フッター用の固定最小高。`panel`: Pane 4 で余白を埋める。 */
   layout?: "dock" | "panel";
 };
 
-/** 選択日の期限タスクリスト（ミニ Google カレンダーのアジェンダ相当） */
+/** 選択日の予定・タスクを時刻順に並べたアジェンダ（ミニ Google カレンダー相当） */
 export function ScheduleDockAgenda({
   selectedDate,
   onSelectDate,
-  tasksOnDay,
+  items,
   projects,
+  shiftLabelsById,
+  eventLabelsById,
   onSelectTask,
+  onSelectEntry,
   layout = "dock",
 }: ScheduleDockAgendaProps) {
   const heading = format(selectedDate, "yyyy年M月d日（EEE）", { locale: ja });
@@ -192,33 +254,60 @@ export function ScheduleDockAgenda({
 
       <ScrollArea className="min-h-0 flex-1">
         <ul className="flex flex-col gap-1 pr-2 pb-1">
-          {tasksOnDay.length === 0 ? (
+          {items.length === 0 ? (
             <li className="py-6 text-center text-xs text-muted-foreground">
-              すべてのプロジェクトを含め、この日が期限のタスクはありません。
+              この日の予定・タスクはありません。
             </li>
           ) : (
-            tasksOnDay.map((task) => (
-              <li key={task.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelectTask(task.id)}
-                  className={cn(
-                    "flex w-full flex-col gap-1 rounded-md border border-transparent px-2 py-2 text-left transition-colors",
-                    "hover:border-border hover:bg-muted/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-                  )}
-                >
-                  <span className="truncate text-xs font-medium text-foreground">
-                    {task.title}
-                  </span>
-                  <span className="truncate text-[10px] text-muted-foreground">
-                    {taskProjectLabel(task, projects)}
-                  </span>
-                  <Badge variant={taskStatusBadgeVariant(task.statusCode)} size="xs">
-                    {task.statusLabel}
-                  </Badge>
-                </button>
-              </li>
-            ))
+            items.map((item) => {
+              const key =
+                item.kind === "task"
+                  ? `task:${item.task.id}`
+                  : `${item.kind}:${item.entry.id}`;
+              const title =
+                item.kind === "task" ? item.task.title : item.entry.title;
+              const subtitle = agendaSubtitle(
+                item,
+                projects,
+                shiftLabelsById,
+                eventLabelsById,
+              );
+              const onClick =
+                item.kind === "task"
+                  ? () => onSelectTask(item.task.id)
+                  : () => onSelectEntry(item.entry.id);
+
+              return (
+                <li key={key}>
+                  <button
+                    type="button"
+                    onClick={onClick}
+                    className={cn(
+                      "flex w-full items-start gap-2 rounded-md border-l-4 bg-card px-2 py-2 text-left transition-colors",
+                      agendaAccentClass(item, shiftLabelsById, eventLabelsById),
+                      "hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50",
+                    )}
+                  >
+                    <span className="w-12 shrink-0 pt-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                      {item.timeLabel}
+                    </span>
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="truncate text-xs font-medium text-foreground">
+                        {title}
+                      </span>
+                      {subtitle ? (
+                        <span className="truncate text-[10px] text-muted-foreground">
+                          {subtitle}
+                        </span>
+                      ) : null}
+                    </div>
+                    <Badge variant="outline" size="xs" className="shrink-0">
+                      {AGENDA_KIND_LABEL[item.kind]}
+                    </Badge>
+                  </button>
+                </li>
+              );
+            })
           )}
         </ul>
       </ScrollArea>
