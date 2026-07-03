@@ -125,6 +125,7 @@ export function TaskHubPane({
                       onUpdateTask(task.id, { dueDate: value === "" ? null : value })
                     }
                     ariaLabel="期限"
+                    clearable
                   />
                 </InlineFieldRow>
                 <InlineFieldRow label="プロジェクト">

@@ -166,6 +166,7 @@ export function MobileTaskForm({
               onSave={setDueDate}
               ariaLabel="期限"
               triggerClassName="h-12 text-base"
+              clearable
             />
             <FieldDescription>未入力の場合は期限なしとして保存します。</FieldDescription>
           </Field>

@@ -178,6 +178,7 @@ export function AddTaskDialog({
                     setDraft((current) => ({ ...current, dueDate: value }))
                   }
                   ariaLabel="期限"
+                  clearable
                 />
               </InlineFieldRow>
               <InlineFieldRow label="プロジェクト">

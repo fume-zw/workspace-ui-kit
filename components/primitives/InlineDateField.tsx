@@ -21,6 +21,7 @@
 import { useState } from "react";
 import { Calendar as CalendarIcon } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -33,12 +34,18 @@ import { cn } from "@/lib/utils";
 export type InlineDateFieldProps = {
   /** ISO 8601 (YYYY-MM-DD) 形式の文字列。空で「日付を選択」placeholder */
   value: string;
-  /** 値が変わったとき呼ばれる（ISO 8601 文字列を渡す） */
+  /** 値が変わったとき呼ばれる（ISO 8601 文字列を渡す。未設定は空文字） */
   onSave: (v: string) => void;
   /** スクリーンリーダー向けラベル */
   ariaLabel: string;
   /** トリガー（入力欄）の追加クラス。スマホ向けに高さを変えるときなど */
   triggerClassName?: string;
+  /**
+   * カレンダー下部に「未設定にする」ボタンを出し、日付を空へ戻せるようにする。
+   * 期限のように「なし」を明示的に選びたいフィールドで有効化する。
+   * 生年月日など必須の日付フィールドでは付けない（既定 false）。
+   */
+  clearable?: boolean;
 };
 
 export function InlineDateField({
@@ -46,6 +53,7 @@ export function InlineDateField({
   onSave,
   ariaLabel,
   triggerClassName,
+  clearable = false,
 }: InlineDateFieldProps) {
   const [open, setOpen] = useState(false);
   const selected = parseISODate(value);
@@ -70,7 +78,7 @@ export function InlineDateField({
           {value || "日付を選択"}
         </span>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto p-0">
+      <PopoverContent align="start" className="flex w-auto flex-col p-0">
         <Calendar
           mode="single"
           selected={selected}
@@ -85,6 +93,23 @@ export function InlineDateField({
           defaultMonth={selected ?? new Date()}
           autoFocus
         />
+        {clearable && (
+          <div className="border-t border-border p-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              disabled={!value}
+              onClick={() => {
+                if (value) onSave("");
+                setOpen(false);
+              }}
+            >
+              未設定にする
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );
