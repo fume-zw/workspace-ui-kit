@@ -2,7 +2,9 @@
 
 新チャット開始時に **このファイルを読ませる** か、末尾の「新チャット用プロンプト」を貼り付けてください。
 
-**最終更新:** 2026-06-18（Vercel 本番公開・UI 改善・レポート絞り込み・LINE 配信確認済み）
+**最終更新:** 2026-07-03（**スケジュール管理機能** 設計確定・フェーズ1〜2 実装完了 / 期限「未設定」対応 / LINE 配信 REPORT_USER_ID 修正）
+
+> **いま進行中の大タスク:** スケジュール管理機能（イベント・勤務予定・定期タスク）の追加。詳細は **§11** を参照。次チャットは **フェーズ3** から。
 
 ---
 
@@ -458,6 +460,26 @@ Vercel は **UI のみ**。朝のレポートは **GitHub Actions**（`task-dail
 
 ## 8. 新チャット用プロンプト（コピペ用）
 
+### 8a. スケジュール管理機能の続き（← 今はこれ）
+
+```
+workspace-ui-kit/docs/handoff.md の §11 を読んで、スケジュール管理機能の
+設計と進捗を把握してください。
+
+【状況】
+- 設計は Grill で確定済み（§11-1）。実装は 8 フェーズ（§11-2）。
+- フェーズ2（画面切替・「＋」メニュー・追加ダイアログ骨組み）完了・コミット済み（未 push）。
+- Supabase マイグレーション 000004〜000007 は適用済み。
+
+【次にやること = フェーズ3】
+勤務ラベル管理 UI と、月カレンダー複数日選択→ラベル一括入力（AddShiftDialog の中身）。
+詳細は §11-6。
+
+IT 用語は平易な言葉で説明してください。
+```
+
+### 8b. タスク管理本体（安定・保守モード）
+
 ```
 workspace-ui-kit/docs/handoff.md を読んで前提を把握してください。
 
@@ -470,12 +492,7 @@ workspace-ui-kit/docs/handoff.md を読んで前提を把握してください�
 
 【完了済み】
 migrations / Auth / PC 4ペイン / /mobile / レポート（期限3日フィルタ）/ web/ 削除 /
-LINE 配信 / user_id 移行 / Pane 2 UI / Vercel ログイン確認
-
-【任意の改善】
-- カスタムドメイン（Vercel Domains + Supabase URL 更新）
-- Next.js middleware → proxy 移行
-- spec-task-workspace.md の Pane 2 表示順を UI 確定値に同期
+LINE 配信 / user_id 移行 / Pane 2 UI / Vercel ログイン確認 / 期限「未設定」対応
 ```
 
 ---
@@ -544,3 +561,102 @@ npm test
 - **Pane 2:** 通常は Pane 1 で選んだ **1 プロジェクト** のタスクのみ（期限フィルタ時は横断）
 - **Gemini 429:** レポートの「確認すること」はタスク由来フォールバックで続行
 - **Secrets:** `service_role` / LINE トークンは GitHub Secrets とローカル `.env` のみ
+
+---
+
+## 11. スケジュール管理機能（2026-07-03〜・進行中）
+
+タスク管理に加えて **イベント予定・勤務予定・定期タスク** を追加する大タスク。
+Grill（要件深掘り）で設計を確定 → 8 フェーズの実装プランに分割 → **フェーズ1〜2 完了**。
+
+### 11-1. 確定した設計（Grill 合意事項）
+
+| 論点 | 決定 |
+|------|------|
+| **データモデル** | ハイブリッド。イベント/勤務 = 新エンティティ `schedule_entries`（`kind: event \| shift`）。定期タスク = 既存 `tasks` の拡張（繰り返し） |
+| **画面構成** | 2 ビュー（タスク管理 / スケジュール管理）をヘッダーで切替。Pane 4 は両ビューで常時表示 |
+| **スケジュールビュー** | 週ビュー既定（日ビュー切替可）。上部に終日/日付のみ帯、下部に時刻グリッド。月ビューはスコープ外 |
+| **Pane 4 の役割** | 期限タスク + イベント + 勤務 + 定期タスク各回を **時刻順** に表示。クリックでスケジュールビューに切替えて該当予定を選択表示（タスクは従来どおり Pane 3） |
+| **時刻** | 開始/終了 datetime + 終日フラグ + 日跨ぎ（夜勤）OK。JST 固定 |
+| **勤務ラベル** | ユーザー管理マスター。2 タイプ = **時間ブロック型**（採血当番・当直、時刻あり→グリッド描画）/ **終日マーカー型**（休み、時刻なし→グリッド本体は埋めず上部チップ） |
+| **勤務入力** | 専用ダイアログの月カレンダーで複数日をマルチ選択 → ラベル一括適用 |
+| **繰り返し** | **定期タスクのみ**（勤務/イベントは繰り返さない。繰り返したい勤務は定期タスクへ）。プリセット（毎日/毎週[曜日複数]/毎月[同日]/毎月[第n曜日]）+ 終了条件（終了日/回数/無期限）+ 起動時ローリング生成（先 8 週・冪等） |
+| **繰り返し波及** | 各回は独立編集・単体削除（1回だけズラすOK）。テンプレ編集は未生成の未来のみ自動適用、「以降に反映」ボタンで生成済み未来も再生成 |
+| **所属** | イベント/勤務 = プロジェクト非紐付け（ワークスペース共通）。定期タスク = Pane 1 の **「定期タスク」固定行**（`RECURRING_PROJECT_ID`）に集約 |
+| **勤務ラベル編集/削除** | 名前・色は貼り済みにも反映（参照方式）。個別に直した時刻は保持。削除は使用中なら警告してアーカイブ（`archived_at`、完全削除しない） |
+| **履歴** | 過去の予定・勤務・定期タスク各回は自動削除せず全部残す |
+| **「＋新規作成」** | 検索バー横 → ボタン1つ+2択メニュー。タスク画面=「タスク/定期タスク」、スケジュール画面=「イベント/勤務予定」 |
+| **位置づけ** | これは配布雛形ではなく **本人の稼働ツール**。CLAUDE.md の「受講生向け・汎用維持」の縛りは実質適用外（医療系ラベル・シードのままで可） |
+
+### 11-2. 実装プラン（全 8 フェーズ）
+
+| # | 内容 | 状態 |
+|---|------|------|
+| 1 | DB + 型 + 読み書き層 | ✅ 完了（`2fb02e8`） |
+| 2 | 画面切替 + 「＋」メニュー + 追加ダイアログ骨組み | ✅ 完了（コミット済み・未 push） |
+| 3 | 勤務ラベル管理 + 月カレンダー一括入力 | ⬜ **次はここから** |
+| 4 | イベント CRUD（詳細ペイン `ScheduleEntryHubPane`） | ⬜ |
+| 5 | 定期タスク（Pane 1 固定行 + テンプレ編集 Pane 3 リンク + 「以降に反映」） | ⬜ 一部先行済み（下記） |
+| 6 | スケジュール週ビュー（時間グリッド・重なり横並び・終日帯） | ⬜ |
+| 7 | Pane 4 アジェンダ拡張（時刻+タイトル+種類バッジ） | ⬜ |
+| 8 | 仕上げ（シード・テスト・ドキュメント） | ⬜ |
+
+### 11-3. フェーズ1 完了内容（DB・型・データ層）
+
+**マイグレーション（Supabase に適用済み）:**
+
+| ファイル | 内容 |
+|----------|------|
+| `20260611000004_shift_labels.sql` | 勤務ラベルマスター（`display_type`・既定時刻・`color_token`・`archived_at`） |
+| `20260611000005_schedule_entries.sql` | イベント/勤務（`kind`・`starts_at`/`ends_at`・`all_day`・`shift_label_id`・`time_overridden`） |
+| `20260611000006_recurring_task_templates.sql` | 定期タスクのルール（`recurrence_preset`・`weekdays`・`end_type` 等） |
+| `20260611000007_tasks_recurring_link.sql` | `tasks` に `recurring_template_id` / `recurrence_instance_date` 追加 + UNIQUE + RLS 更新 |
+
+**型・データ層:**
+
+| ファイル | 内容 |
+|----------|------|
+| `lib/schema.ts` | `ShiftLabel` / `ScheduleEntry` / `RecurringTaskTemplate` 型、`RECURRING_PROJECT_ID`、`WorkspaceView`、各 enum、`Task` に 2 列追加（`.default(null)` で JSON 互換維持） |
+| `lib/labels.ts` | `RECURRING_PROJECT_LABEL = "定期タスク"` |
+| `lib/schedule-db.ts` | shift_labels / schedule_entries の CRUD（`fetchScheduleData` 等） |
+| `lib/recurring-db.ts` | テンプレ CRUD + `generateRecurringInstances`（起動時ローリング生成・冪等） |
+| `lib/computed/recurring-instances.ts` | プリセット→該当日計算（第 n 曜日・終了条件対応） |
+| `lib/task-db.ts` | `TASK_SELECT` に新 2 列、`mapTaskRow` 反映、`fetchTasks` 追加 |
+| `app/page.tsx` | 起動時に `generateRecurringInstances` → `fetchScheduleData`/`fetchRecurringTemplates` を並列取得し Workspace へ渡す |
+
+### 11-4. フェーズ2 完了内容（画面切替 + 追加導線）
+
+| ファイル | 内容 |
+|----------|------|
+| `components/workspace/GlobalHeader.tsx` | ビュー切替 `ToggleGroup` + 「＋」を `DropdownMenu`（2択）に変更。スケジュール時は検索バー非表示 |
+| `components/workspace/ScheduleViewPlaceholder.tsx` | スケジュールビュー本体の仮表示（件数のみ。週ビューはフェーズ6） |
+| `components/workspace/AddRecurringTaskDialog.tsx` | 定期タスク追加（プリセット・曜日・終了条件）。保存→即ローリング生成→タスク再取得 |
+| `components/workspace/AddEventDialog.tsx` | イベント追加（日付・時刻 or 終日）。保存後スケジュールビューへ切替 |
+| `components/workspace/AddShiftDialog.tsx` | 勤務追加の**プレースホルダー**（中身はフェーズ3） |
+| `components/workspace/Workspace.tsx` | `view` state、各ダイアログ配線、`addEvent`/`addRecurringTask` ハンドラ、`refreshTasks` |
+
+> **注意:** フェーズ2 は **コミット済み・未 push**。ローカル確認後に `git push origin main`。
+
+### 11-5. 併せて実施した既存機能の変更（コミット済み）
+
+| 変更 | コミット | 内容 |
+|------|----------|------|
+| 期限「未設定」 | `71747a7` | `InlineDateField` に `clearable` prop 追加。期限3か所（Pane3/追加ダイアログ/モバイル）でカレンダー下部に「未設定にする」ボタン。誕生日等は従来どおり |
+| LINE 配信修正 | （自動報告ツール側 + GitHub Secrets） | 朝レポートが空だった原因 = `REPORT_USER_ID` が旧アカウント（`5b93a072…`＝tasks 0件）を参照。正しい `c0f509ed…`（`umezawa.yuka@kameda.jp`＝27件）へ GitHub Secret とローカル `.env` の両方を更新。明朝の自動実行から反映予定 |
+
+> **LINE 補足:** 朝レポートは「期限が期限切れ〜3日以内の未完了タスク」のみ対象。期限を **未設定** にしたタスクはレポートに載らない。期限なし運用を増やすならレポート側の抽出条件見直しが必要。
+
+### 11-6. フェーズ3 でやること（次チャットの起点）
+
+1. **勤務ラベル管理 UI**（`ShiftLabelSettings.tsx`）— 追加・編集（名前/色/表示タイプ/既定時刻）・アーカイブ。設定ダイアログ内 or 独立
+2. **勤務一括入力ダイアログ**（`AddShiftDialog.tsx` の中身）— 月カレンダーで複数日マルチ選択 → ラベル選択 → 一括生成
+   - `time_block` ラベル → 既定時刻で `schedule_entries` 作成
+   - `all_day_marker`（休み）→ `all_day=true`
+   - `lib/schedule-db.ts` に `insertShiftsBulk(dates[], labelId)` を追加
+3. Workspace に `shiftLabels` / `scheduleEntries` の CRUD ハンドラ配線（`shiftLabels` は現在読み取りのみ）
+
+### 11-7. 未コミットの状態と注意
+
+- フェーズ2 の変更は **コミット済み・未 push**（ローカル確認後に push）
+- `lint` / `build` / `test`（50件）は **全て通過済み**
+- Supabase マイグレーション 000004〜000007 は **ユーザーが適用済み**

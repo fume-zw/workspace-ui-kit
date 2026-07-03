@@ -19,6 +19,7 @@ import {
   type Subtask,
   type Task,
   type TaskGroup,
+  type WorkspaceView,
   UNASSIGNED_PROJECT_ID,
 } from "@/lib/schema";
 import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
@@ -35,6 +36,7 @@ import {
   deleteProject as deleteProjectFromDb,
   deleteSubtask as deleteSubtaskFromDb,
   deleteTask as deleteTaskFromDb,
+  fetchTasks,
   insertProject,
   insertSubtask,
   insertTask,
@@ -43,6 +45,11 @@ import {
   updateTask as updateTaskInDb,
   updateProjectSortOrders,
 } from "@/lib/task-db";
+import {
+  generateRecurringInstances,
+  insertRecurringTemplate,
+} from "@/lib/recurring-db";
+import { insertScheduleEntry } from "@/lib/schedule-db";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { GlobalHeader } from "@/components/workspace/GlobalHeader";
 import { ProjectPane } from "@/components/workspace/ProjectPane";
@@ -50,6 +57,16 @@ import {
   AddTaskDialog,
   type NewTaskInput,
 } from "@/components/workspace/AddTaskDialog";
+import {
+  AddRecurringTaskDialog,
+  type NewRecurringTaskInput,
+} from "@/components/workspace/AddRecurringTaskDialog";
+import {
+  AddEventDialog,
+  type NewEventInput,
+} from "@/components/workspace/AddEventDialog";
+import { AddShiftDialog } from "@/components/workspace/AddShiftDialog";
+import { ScheduleViewPlaceholder } from "@/components/workspace/ScheduleViewPlaceholder";
 import { TaskListPane } from "@/components/workspace/TaskListPane";
 import { TaskHubPane } from "@/components/workspace/TaskHubPane";
 import { SubtaskPane } from "@/components/workspace/SubtaskPane";
@@ -72,19 +89,24 @@ export function Workspace({
   initialProjects,
   initialTasks,
   initialSubtasks,
-  initialShiftLabels: _initialShiftLabels,
-  initialScheduleEntries: _initialScheduleEntries,
-  initialRecurringTemplates: _initialRecurringTemplates,
+  initialShiftLabels,
+  initialScheduleEntries,
+  initialRecurringTemplates,
   workspace,
 }: WorkspaceProps) {
-  void _initialShiftLabels;
-  void _initialScheduleEntries;
-  void _initialRecurringTemplates;
   const supabase = useMemo(() => createClient(), []);
 
+  const [view, setView] = useState<WorkspaceView>("tasks");
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks);
+  const [shiftLabels] = useState<ShiftLabel[]>(initialShiftLabels);
+  const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>(
+    initialScheduleEntries,
+  );
+  const [recurringTemplates, setRecurringTemplates] = useState<
+    RecurringTaskTemplate[]
+  >(initialRecurringTemplates);
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
     initialProjects[0]?.id ?? UNASSIGNED_PROJECT_ID,
   );
@@ -97,12 +119,35 @@ export function Workspace({
   );
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [addTaskDialogKey, setAddTaskDialogKey] = useState(0);
+  const [addRecurringOpen, setAddRecurringOpen] = useState(false);
+  const [addRecurringDialogKey, setAddRecurringDialogKey] = useState(0);
+  const [addEventOpen, setAddEventOpen] = useState(false);
+  const [addEventDialogKey, setAddEventDialogKey] = useState(0);
+  const [addShiftOpen, setAddShiftOpen] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(() => startOfDay(new Date()));
   const [actionError, setActionError] = useState<string | null>(null);
 
   const setScheduleDay = useCallback((d: Date) => {
     setScheduleDate(startOfDay(d));
   }, []);
+
+  const changeView = useCallback((nextView: WorkspaceView) => {
+    setView(nextView);
+    if (nextView === "schedule") {
+      setSearchQuery("");
+      setDueUrgencyFilter(null);
+    }
+  }, []);
+
+  const refreshTasks = useCallback(async () => {
+    const { data, error } = await fetchTasks(supabase);
+    if (error) {
+      setActionError(error);
+      return;
+    }
+    setActionError(null);
+    if (data) setTasks(data);
+  }, [supabase]);
 
   const addProject = useCallback(
     async (name: string) => {
@@ -255,6 +300,72 @@ export function Workspace({
       setSelectedProjectId(input.projectId ?? UNASSIGNED_PROJECT_ID);
     },
     [supabase],
+  );
+
+  const addEvent = useCallback(
+    async (input: NewEventInput) => {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const { data, error } = await insertScheduleEntry(supabase, user.id, {
+        kind: "event",
+        title: input.title,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        allDay: input.allDay,
+      });
+      if (error || !data) {
+        setActionError(error ?? "イベントの追加に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setScheduleEntries((prev) =>
+        [...prev, data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      );
+      setView("schedule");
+    },
+    [supabase],
+  );
+
+  const addRecurringTask = useCallback(
+    async (input: NewRecurringTaskInput) => {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const { data: template, error } = await insertRecurringTemplate(
+        supabase,
+        user.id,
+        input,
+      );
+      if (error || !template) {
+        setActionError(error ?? "定期タスクの追加に失敗しました。");
+        return;
+      }
+
+      const genResult = await generateRecurringInstances(supabase, user.id);
+      if (genResult.error) {
+        setActionError(genResult.error);
+        return;
+      }
+
+      await refreshTasks();
+      setRecurringTemplates((prev) => [...prev, template]);
+      setActionError(null);
+    },
+    [refreshTasks, supabase],
   );
 
   const deleteTask = useCallback(
@@ -547,6 +658,8 @@ export function Workspace({
           </p>
         )}
         <GlobalHeader
+          view={view}
+          onViewChange={changeView}
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
           projects={displayProjects}
@@ -556,6 +669,15 @@ export function Workspace({
             setAddTaskDialogKey((key) => key + 1);
             setAddTaskOpen(true);
           }}
+          onOpenAddRecurringTask={() => {
+            setAddRecurringDialogKey((key) => key + 1);
+            setAddRecurringOpen(true);
+          }}
+          onOpenAddEvent={() => {
+            setAddEventDialogKey((key) => key + 1);
+            setAddEventOpen(true);
+          }}
+          onOpenAddShift={() => setAddShiftOpen(true)}
         />
         <AddTaskDialog
           key={addTaskDialogKey}
@@ -567,28 +689,54 @@ export function Workspace({
           selectedProjectId={selectedProjectId}
           onSave={addTask}
         />
+        <AddRecurringTaskDialog
+          key={addRecurringDialogKey}
+          open={addRecurringOpen}
+          onOpenChange={setAddRecurringOpen}
+          statuses={statuses}
+          defaultStatusId={defaultStatusId}
+          onSave={addRecurringTask}
+        />
+        <AddEventDialog
+          key={addEventDialogKey}
+          open={addEventOpen}
+          onOpenChange={setAddEventOpen}
+          defaultDate={format(scheduleDate, "yyyy-MM-dd")}
+          onSave={addEvent}
+        />
+        <AddShiftDialog open={addShiftOpen} onOpenChange={setAddShiftOpen} />
         <div className="flex min-h-0 flex-1">
-          <TaskListPane
-            paneTitle={listPaneTitle}
-            groups={taskGroups}
-            searchProjectGroups={searchProjectGroups}
-            searchQuery={searchQuery}
-            unfilteredTaskCount={visibleTasks.length}
-            selectedTaskId={activeTaskId}
-            onSelectTask={selectTask}
-            onDeleteTask={deleteTask}
-            emptyMessage={listPaneEmptyMessage}
-          />
-          <TaskHubPane
-            task={activeTask}
-            projects={projects}
-            statuses={statuses}
-            subtasks={activeSubtasks}
-            onAddSubtask={addSubtask}
-            onUpdateSubtask={updateSubtaskHandler}
-            onDeleteSubtask={deleteSubtaskHandler}
-            onUpdateTask={updateTask}
-          />
+          {view === "tasks" ? (
+            <>
+              <TaskListPane
+                paneTitle={listPaneTitle}
+                groups={taskGroups}
+                searchProjectGroups={searchProjectGroups}
+                searchQuery={searchQuery}
+                unfilteredTaskCount={visibleTasks.length}
+                selectedTaskId={activeTaskId}
+                onSelectTask={selectTask}
+                onDeleteTask={deleteTask}
+                emptyMessage={listPaneEmptyMessage}
+              />
+              <TaskHubPane
+                task={activeTask}
+                projects={projects}
+                statuses={statuses}
+                subtasks={activeSubtasks}
+                onAddSubtask={addSubtask}
+                onUpdateSubtask={updateSubtaskHandler}
+                onDeleteSubtask={deleteSubtaskHandler}
+                onUpdateTask={updateTask}
+              />
+            </>
+          ) : (
+            <ScheduleViewPlaceholder
+              eventCount={scheduleEntries.length}
+              shiftLabelCount={shiftLabels.length}
+              recurringTemplateCount={recurringTemplates.length}
+            />
+          )}
           <SubtaskPane
             scheduleSelectedDate={scheduleDate}
             onScheduleDateChange={setScheduleDay}

@@ -160,6 +160,24 @@ export async function fetchProjectOptions(
   };
 }
 
+export async function fetchTasks(
+  supabase: SupabaseClient,
+): Promise<{ data: Task[] | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("tasks")
+    .select(TASK_SELECT)
+    .order("created_at");
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return {
+    data: (data ?? []).map((row) => mapTaskRow(row as TaskRow)),
+    error: null,
+  };
+}
+
 export async function fetchWorkspaceData(
   supabase: SupabaseClient,
 ): Promise<{ data: WorkspaceData | null; error: string | null }> {

@@ -132,6 +132,11 @@ export type RecurringTaskTemplate = z.infer<typeof recurringTaskTemplateSchema>;
 /** ローリング生成の先読み週数（Grill 合意: 8 週）。 */
 export const RECURRING_INSTANCE_HORIZON_WEEKS = 8;
 
+// ===== ワークスペースビュー =====
+
+export const WORKSPACE_VIEWS = ["tasks", "schedule"] as const;
+export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number];
+
 // ===== Pane 1: 部署 → ポジション 階層（採用サンプル・Pane 3〜4 検証用に維持） =====
 
 /** 部署配下の単一ポジション。Pane 1 の階層 Sidebar に表示する単位。 */
