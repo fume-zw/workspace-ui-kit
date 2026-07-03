@@ -49,7 +49,15 @@ import {
   generateRecurringInstances,
   insertRecurringTemplate,
 } from "@/lib/recurring-db";
-import { insertScheduleEntry } from "@/lib/schedule-db";
+import {
+  archiveShiftLabel,
+  deleteScheduleEntry,
+  insertScheduleEntry,
+  insertShiftLabel,
+  insertShiftsBulk,
+  updateScheduleEntry,
+  updateShiftLabel,
+} from "@/lib/schedule-db";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { GlobalHeader } from "@/components/workspace/GlobalHeader";
 import { ProjectPane } from "@/components/workspace/ProjectPane";
@@ -66,7 +74,12 @@ import {
   type NewEventInput,
 } from "@/components/workspace/AddEventDialog";
 import { AddShiftDialog } from "@/components/workspace/AddShiftDialog";
-import { ScheduleViewPlaceholder } from "@/components/workspace/ScheduleViewPlaceholder";
+import {
+  ShiftLabelSettings,
+  type ShiftLabelFormValue,
+} from "@/components/workspace/ShiftLabelSettings";
+import { ScheduleEntryListPane } from "@/components/workspace/ScheduleEntryListPane";
+import { ScheduleEntryHubPane } from "@/components/workspace/ScheduleEntryHubPane";
 import { TaskListPane } from "@/components/workspace/TaskListPane";
 import { TaskHubPane } from "@/components/workspace/TaskHubPane";
 import { SubtaskPane } from "@/components/workspace/SubtaskPane";
@@ -100,7 +113,8 @@ export function Workspace({
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks);
-  const [shiftLabels] = useState<ShiftLabel[]>(initialShiftLabels);
+  const [shiftLabels, setShiftLabels] =
+    useState<ShiftLabel[]>(initialShiftLabels);
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>(
     initialScheduleEntries,
   );
@@ -113,6 +127,10 @@ export function Workspace({
   const [selectedTaskId, setSelectedTaskId] = useState<string>(
     initialTasks[0]?.id ?? "",
   );
+  const [selectedScheduleEntryId, setSelectedScheduleEntryId] = useState<string>(
+    () =>
+      initialScheduleEntries.find((entry) => entry.kind === "event")?.id ?? "",
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [dueUrgencyFilter, setDueUrgencyFilter] = useState<TaskDueUrgency | null>(
     null,
@@ -124,6 +142,7 @@ export function Workspace({
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [addEventDialogKey, setAddEventDialogKey] = useState(0);
   const [addShiftOpen, setAddShiftOpen] = useState(false);
+  const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(() => startOfDay(new Date()));
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -329,7 +348,57 @@ export function Workspace({
       setScheduleEntries((prev) =>
         [...prev, data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
       );
+      setSelectedScheduleEntryId(data.id);
       setView("schedule");
+    },
+    [supabase],
+  );
+
+  const selectScheduleEntry = useCallback((entryId: string) => {
+    setSelectedScheduleEntryId(entryId);
+  }, []);
+
+  const updateScheduleEntryHandler = useCallback(
+    async (
+      entryId: string,
+      patch: Partial<
+        Pick<ScheduleEntry, "title" | "startsAt" | "endsAt" | "allDay">
+      >,
+    ) => {
+      const { data, error } = await updateScheduleEntry(supabase, entryId, patch);
+      if (error || !data) {
+        setActionError(error ?? "イベントの更新に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setScheduleEntries((prev) =>
+        prev
+          .map((entry) => (entry.id === entryId ? data : entry))
+          .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      );
+    },
+    [supabase],
+  );
+
+  const deleteScheduleEntryHandler = useCallback(
+    async (entryId: string) => {
+      const { error } = await deleteScheduleEntry(supabase, entryId);
+      if (error) {
+        setActionError(error);
+        return;
+      }
+
+      setActionError(null);
+      setScheduleEntries((prev) => {
+        const next = prev.filter((entry) => entry.id !== entryId);
+        setSelectedScheduleEntryId((currentId) => {
+          if (currentId !== entryId) return currentId;
+          const events = next.filter((entry) => entry.kind === "event");
+          return events[0]?.id ?? "";
+        });
+        return next;
+      });
     },
     [supabase],
   );
@@ -366,6 +435,113 @@ export function Workspace({
       setActionError(null);
     },
     [refreshTasks, supabase],
+  );
+
+  const addShiftLabel = useCallback(
+    async (value: ShiftLabelFormValue) => {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const nextSortOrder =
+        shiftLabels.reduce((max, label) => Math.max(max, label.sortOrder), 0) + 1;
+
+      const { data, error } = await insertShiftLabel(supabase, user.id, {
+        name: value.name,
+        displayType: value.displayType,
+        defaultStartTime: value.defaultStartTime,
+        defaultEndTime: value.defaultEndTime,
+        endsNextDay: value.endsNextDay,
+        colorToken: value.colorToken,
+        sortOrder: nextSortOrder,
+      });
+      if (error || !data) {
+        setActionError(error ?? "勤務ラベルの追加に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setShiftLabels((prev) =>
+        [...prev, data].sort((a, b) => a.sortOrder - b.sortOrder),
+      );
+    },
+    [shiftLabels, supabase],
+  );
+
+  const updateShiftLabelHandler = useCallback(
+    async (labelId: string, value: ShiftLabelFormValue) => {
+      const { data, error } = await updateShiftLabel(supabase, labelId, {
+        name: value.name,
+        displayType: value.displayType,
+        defaultStartTime: value.defaultStartTime,
+        defaultEndTime: value.defaultEndTime,
+        endsNextDay: value.endsNextDay,
+        colorToken: value.colorToken,
+      });
+      if (error || !data) {
+        setActionError(error ?? "勤務ラベルの更新に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setShiftLabels((prev) =>
+        prev.map((label) => (label.id === labelId ? data : label)),
+      );
+    },
+    [supabase],
+  );
+
+  const archiveShiftLabelHandler = useCallback(
+    async (labelId: string) => {
+      const { error } = await archiveShiftLabel(supabase, labelId);
+      if (error) {
+        setActionError(error);
+        return;
+      }
+
+      setActionError(null);
+      setShiftLabels((prev) => prev.filter((label) => label.id !== labelId));
+    },
+    [supabase],
+  );
+
+  const addShiftsBulk = useCallback(
+    async (dateKeys: string[], labelId: string) => {
+      const label = shiftLabels.find((item) => item.id === labelId);
+      if (!label || dateKeys.length === 0) return;
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const { data, error } = await insertShiftsBulk(
+        supabase,
+        user.id,
+        dateKeys,
+        label,
+      );
+      if (error || !data) {
+        setActionError(error ?? "勤務予定の追加に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setScheduleEntries((prev) =>
+        [...prev, ...data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      );
+      setView("schedule");
+    },
+    [shiftLabels, supabase],
   );
 
   const deleteTask = useCallback(
@@ -631,6 +807,29 @@ export function Workspace({
       .sort((a, b) => a.title.localeCompare(b.title, "ja"));
   }, [scheduleTasks, scheduleDate]);
 
+  const shiftUsageCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const entry of scheduleEntries) {
+      if (entry.shiftLabelId) {
+        counts[entry.shiftLabelId] = (counts[entry.shiftLabelId] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [scheduleEntries]);
+
+  const eventEntries = useMemo(
+    () =>
+      scheduleEntries
+        .filter((entry) => entry.kind === "event")
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+    [scheduleEntries],
+  );
+
+  const activeEvent =
+    eventEntries.find((entry) => entry.id === selectedScheduleEntryId) ??
+    eventEntries[0];
+  const activeEventId = activeEvent?.id ?? "";
+
   return (
     <SidebarProvider
       defaultOpen
@@ -704,7 +903,25 @@ export function Workspace({
           defaultDate={format(scheduleDate, "yyyy-MM-dd")}
           onSave={addEvent}
         />
-        <AddShiftDialog open={addShiftOpen} onOpenChange={setAddShiftOpen} />
+        <AddShiftDialog
+          open={addShiftOpen}
+          onOpenChange={setAddShiftOpen}
+          labels={shiftLabels}
+          onSave={addShiftsBulk}
+          onManageLabels={() => {
+            setAddShiftOpen(false);
+            setManageLabelsOpen(true);
+          }}
+        />
+        <ShiftLabelSettings
+          open={manageLabelsOpen}
+          onOpenChange={setManageLabelsOpen}
+          labels={shiftLabels}
+          usageCounts={shiftUsageCounts}
+          onAdd={addShiftLabel}
+          onUpdate={updateShiftLabelHandler}
+          onArchive={archiveShiftLabelHandler}
+        />
         <div className="flex min-h-0 flex-1">
           {view === "tasks" ? (
             <>
@@ -731,11 +948,19 @@ export function Workspace({
               />
             </>
           ) : (
-            <ScheduleViewPlaceholder
-              eventCount={scheduleEntries.length}
-              shiftLabelCount={shiftLabels.length}
-              recurringTemplateCount={recurringTemplates.length}
-            />
+            <>
+              <ScheduleEntryListPane
+                entries={eventEntries}
+                selectedEntryId={activeEventId}
+                onSelectEntry={selectScheduleEntry}
+                onDeleteEntry={deleteScheduleEntryHandler}
+              />
+              <ScheduleEntryHubPane
+                entry={activeEvent}
+                onUpdateEntry={updateScheduleEntryHandler}
+                onDeleteEntry={deleteScheduleEntryHandler}
+              />
+            </>
           )}
           <SubtaskPane
             scheduleSelectedDate={scheduleDate}

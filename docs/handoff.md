@@ -2,9 +2,9 @@
 
 新チャット開始時に **このファイルを読ませる** か、末尾の「新チャット用プロンプト」を貼り付けてください。
 
-**最終更新:** 2026-07-03（**スケジュール管理機能** 設計確定・フェーズ1〜2 実装完了 / 期限「未設定」対応 / LINE 配信 REPORT_USER_ID 修正）
+**最終更新:** 2026-07-03（**スケジュール管理機能** 設計確定・フェーズ1〜4 実装完了 / 期限「未設定」対応 / LINE 配信 REPORT_USER_ID 修正）
 
-> **いま進行中の大タスク:** スケジュール管理機能（イベント・勤務予定・定期タスク）の追加。詳細は **§11** を参照。次チャットは **フェーズ3** から。
+> **いま進行中の大タスク:** スケジュール管理機能（イベント・勤務予定・定期タスク）の追加。詳細は **§11** を参照。次チャットは **フェーズ5** から。
 
 ---
 
@@ -468,12 +468,11 @@ workspace-ui-kit/docs/handoff.md の §11 を読んで、スケジュール管�
 
 【状況】
 - 設計は Grill で確定済み（§11-1）。実装は 8 フェーズ（§11-2）。
-- フェーズ2（画面切替・「＋」メニュー・追加ダイアログ骨組み）完了・コミット済み（未 push）。
+- フェーズ1〜4 完了。フェーズ2 はコミット済み・未 push、フェーズ3〜4 はコミット前。
 - Supabase マイグレーション 000004〜000007 は適用済み。
 
-【次にやること = フェーズ3】
-勤務ラベル管理 UI と、月カレンダー複数日選択→ラベル一括入力（AddShiftDialog の中身）。
-詳細は §11-6。
+【次にやること = フェーズ5】
+定期タスク（Pane 1 固定行 + テンプレ編集 Pane 3 リンク + 「以降に反映」）。詳細は §11-2 / §11-1。
 
 IT 用語は平易な言葉で説明してください。
 ```
@@ -594,9 +593,9 @@ Grill（要件深掘り）で設計を確定 → 8 フェーズの実装プラ�
 |---|------|------|
 | 1 | DB + 型 + 読み書き層 | ✅ 完了（`2fb02e8`） |
 | 2 | 画面切替 + 「＋」メニュー + 追加ダイアログ骨組み | ✅ 完了（コミット済み・未 push） |
-| 3 | 勤務ラベル管理 + 月カレンダー一括入力 | ⬜ **次はここから** |
-| 4 | イベント CRUD（詳細ペイン `ScheduleEntryHubPane`） | ⬜ |
-| 5 | 定期タスク（Pane 1 固定行 + テンプレ編集 Pane 3 リンク + 「以降に反映」） | ⬜ 一部先行済み（下記） |
+| 3 | 勤務ラベル管理 + 月カレンダー一括入力 | ✅ 完了（コミット前・未 push） |
+| 4 | イベント CRUD（詳細ペイン `ScheduleEntryHubPane`） | ✅ 完了（コミット前・未 push） |
+| 5 | 定期タスク（Pane 1 固定行 + テンプレ編集 Pane 3 リンク + 「以降に反映」） | ⬜ **次はここから** |
 | 6 | スケジュール週ビュー（時間グリッド・重なり横並び・終日帯） | ⬜ |
 | 7 | Pane 4 アジェンダ拡張（時刻+タイトル+種類バッジ） | ⬜ |
 | 8 | 仕上げ（シード・テスト・ドキュメント） | ⬜ |
@@ -646,17 +645,37 @@ Grill（要件深掘り）で設計を確定 → 8 フェーズの実装プラ�
 
 > **LINE 補足:** 朝レポートは「期限が期限切れ〜3日以内の未完了タスク」のみ対象。期限を **未設定** にしたタスクはレポートに載らない。期限なし運用を増やすならレポート側の抽出条件見直しが必要。
 
-### 11-6. フェーズ3 でやること（次チャットの起点）
+### 11-6. フェーズ3 完了内容（勤務ラベル管理 + 一括入力）
 
-1. **勤務ラベル管理 UI**（`ShiftLabelSettings.tsx`）— 追加・編集（名前/色/表示タイプ/既定時刻）・アーカイブ。設定ダイアログ内 or 独立
-2. **勤務一括入力ダイアログ**（`AddShiftDialog.tsx` の中身）— 月カレンダーで複数日マルチ選択 → ラベル選択 → 一括生成
-   - `time_block` ラベル → 既定時刻で `schedule_entries` 作成
-   - `all_day_marker`（休み）→ `all_day=true`
-   - `lib/schedule-db.ts` に `insertShiftsBulk(dates[], labelId)` を追加
-3. Workspace に `shiftLabels` / `scheduleEntries` の CRUD ハンドラ配線（`shiftLabels` は現在読み取りのみ）
+| ファイル | 内容 |
+|----------|------|
+| `lib/schedule-colors.ts` | 勤務ラベルの色パレット（**新規**）。`SHIFT_LABEL_COLORS`（token→日本語ラベル→色見本ドットのクラス）+ `shiftColorDotClass()`。**既存の `@theme` トークンのみ再利用**（primary / chart-1〜3 / calendar-saturday / muted-foreground）。生の色クラスは不使用 |
+| `lib/schedule-db.ts` | `insertShiftsBulk(dates[], label)` を追加。`time_block` は既定時刻で開始/終了（`endsNextDay` or 終了≦開始 なら終了を翌日＝夜勤）、`all_day_marker` は `all_day=true` の 00:00〜23:59。JST 固定 ISO |
+| `components/workspace/ShiftLabelSettings.tsx` | 勤務ラベル管理ダイアログ（**新規**）。一覧（色ドット + 名前 + 時刻要約）+ 追加/編集フォーム（名前・表示タイプ・色 Select・既定時刻・日跨ぎ）+ アーカイブ確認（`DeleteConfirmDialog`、使用中は件数を警告）。1 フォームで追加・編集を兼ねる（`editingId`） |
+| `components/workspace/AddShiftDialog.tsx` | プレースホルダーを本実装に置換。ラベル Select + 月カレンダー **複数日マルチ選択**（`Calendar mode="multiple"` + `ja` ロケール）→「一括で追加」。ラベル 0 件時は「勤務ラベルを管理」導線。保存後スケジュールビューへ切替 |
+| `components/workspace/Workspace.tsx` | `shiftLabels` を state 化。`addShiftLabel` / `updateShiftLabelHandler` / `archiveShiftLabelHandler` / `addShiftsBulk` を配線。`shiftUsageCounts`（label_id→件数）を派生計算。`ShiftLabelSettings` を配線（`AddShiftDialog` の「ラベルを管理」から開く） |
 
-### 11-7. 未コミットの状態と注意
+**色パレットの決定（自律判断・要確認あれば差替可）:** 勤務ラベルの色は新トークンを足さず既存 semantic token を色見本ドットとして再利用した（`primary`＝ローズ / `chart-1`＝テラコッタ / `chart-2`＝イエロー / `chart-3`＝グリーン / `calendar-saturday`＝ブルー / `muted-foreground`＝グレー）。フェーズ6 の週ビューで枠・背景に使う際もここが SSoT。専用の勤務色トークンを `@theme` に定義したい場合は別途相談。
 
-- フェーズ2 の変更は **コミット済み・未 push**（ローカル確認後に push）
-- `lint` / `build` / `test`（50件）は **全て通過済み**
+### 11-7. フェーズ4 完了内容（イベント CRUD）
+
+| ファイル | 内容 |
+|----------|------|
+| `lib/computed/schedule-datetime.ts` | JST 日時ヘルパー（**新規**）。`toJstIso` / `buildTimedEventRange` / `buildAllDayEventRange` / 一覧用フォーマット / 月グループ化。**時刻ずれ修正済み**（下記） |
+| `__tests__/schedule-datetime.test.ts` | JST ラウンドトリップ回帰テスト（**新規**・4件） |
+
+**時刻ずれ修正（フェーズ4 後の追加バグ修正・コミット前）:** `timestamptz` は DB に UTC で保存され取得時も `...+00:00` で返るため、ISO 文字列を切り出して時刻を読むと JST と 9 時間ずれていた（終日は日付も前日にずれる）。`dateKeyFromJstIso` / `timeFromJstIso` を「絶対時刻 +9h → UTC ゲッターで読む」JST 換算に変更し、`formatScheduleEntryDate` / `formatScheduleMonthHeading` / `groupScheduleEntriesByMonth` も同経路に統一。保存側は不変なので既存データもそのまま正しく表示される。
+| `components/workspace/ScheduleEntryListPane.tsx` | Pane 2 相当（**新規**）。イベント一覧（月見出し + 行選択 + ⋯ 削除）。`kind === "event"` のみ |
+| `components/workspace/ScheduleEntryHubPane.tsx` | Pane 3 相当（**新規**）。イベント詳細のインライン編集（タイトル・日付・終日・時刻）+ 削除 |
+| `components/workspace/Workspace.tsx` | スケジュールビューを List + Hub に分割。`selectedScheduleEntryId` / `updateScheduleEntryHandler` / `deleteScheduleEntryHandler` 配線。追加後に新イベントを選択 |
+| `components/workspace/AddEventDialog.tsx` | 日時組み立てを `schedule-datetime.ts` に共通化 |
+
+> **注意:** `ScheduleViewPlaceholder.tsx` はフェーズ6（週ビュー）まで未使用。Pane 2 はイベント一覧、Pane 3 は Hub に置き換え済み。勤務予定（shift）はフェーズ6 以降で週ビューに表示。
+
+### 11-8. 未コミットの状態と注意
+
+- **フェーズ2 は コミット済み・未 push。フェーズ3〜4 + 時刻ずれ修正 は コミット前**（ローカル確認 → まとめてコミット → `git push origin main`）
+- `lint` / `test`（**54件**）/ `build` は **全て通過済み**（2026-07-03 フェーズ4 + 時刻修正 時点）
 - Supabase マイグレーション 000004〜000007 は **ユーザーが適用済み**
+- 勤務ラベルはまだ **シード 0 件**（シードはフェーズ8）。勤務の一覧表示は **フェーズ6**（週ビュー）
+- Pane 4 アジェンダへのイベント/勤務表示は **フェーズ7**

@@ -3,6 +3,10 @@
 import { useState } from "react";
 
 import { InlineDateField, InlineFieldRow } from "@/components/primitives";
+import {
+  buildAllDayEventRange,
+  buildTimedEventRange,
+} from "@/lib/computed/schedule-datetime";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -60,30 +64,21 @@ function createDraft(defaultDate?: string): EventDraft {
   };
 }
 
-function toJstIso(dateKey: string, time: string): string {
-  return `${dateKey}T${time}:00+09:00`;
-}
-
 function toNewEventInput(draft: EventDraft): NewEventInput | null {
   const title = draft.title.trim();
   if (!title || !draft.date) return null;
 
   if (draft.allDay) {
-    return {
-      title,
-      startsAt: toJstIso(draft.date, "00:00"),
-      endsAt: toJstIso(draft.date, "23:59"),
-      allDay: true,
-    };
+    const range = buildAllDayEventRange(draft.date);
+    return { title, ...range, allDay: true };
   }
 
   if (!draft.startTime || !draft.endTime) return null;
 
-  const startsAt = toJstIso(draft.date, draft.startTime);
-  const endsAt = toJstIso(draft.date, draft.endTime);
-  if (endsAt <= startsAt) return null;
+  const range = buildTimedEventRange(draft.date, draft.startTime, draft.endTime);
+  if (!range) return null;
 
-  return { title, startsAt, endsAt, allDay: false };
+  return { title, ...range, allDay: false };
 }
 
 export function AddEventDialog({

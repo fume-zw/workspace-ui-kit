@@ -280,3 +280,86 @@ export async function deleteScheduleEntry(
 
   return { error: error?.message ?? null };
 }
+
+/** "HH:MM" / "HH:MM:SS" の時刻文字列を "HH:MM" に正規化する。 */
+function normalizeTime(time: string): string {
+  return time.slice(0, 5);
+}
+
+/** 日付キー(YYYY-MM-DD) + 時刻(HH:MM) を JST 固定の ISO 文字列にする。 */
+function toJstIso(dateKey: string, time: string): string {
+  return `${dateKey}T${normalizeTime(time)}:00+09:00`;
+}
+
+/** 日付キー(YYYY-MM-DD) の翌日を返す。夜勤など日跨ぎの終了日に使う。 */
+function nextDateKey(dateKey: string): string {
+  const [y, m, d] = dateKey.split("-").map((part) => Number.parseInt(part, 10));
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  const ny = next.getUTCFullYear();
+  const nm = String(next.getUTCMonth() + 1).padStart(2, "0");
+  const nd = String(next.getUTCDate()).padStart(2, "0");
+  return `${ny}-${nm}-${nd}`;
+}
+
+/**
+ * 選択した複数日にラベルを一括適用して勤務エントリを作成する。
+ *
+ * - `time_block`（採血当番・当直 等）: ラベル既定時刻で開始/終了を作る。
+ *   `endsNextDay` が true、または終了 ≦ 開始 のときは終了を翌日にする（夜勤）。
+ * - `all_day_marker`（休み 等）: `all_day = true`、その日の 00:00〜23:59。
+ */
+export async function insertShiftsBulk(
+  supabase: SupabaseClient,
+  userId: string,
+  dateKeys: string[],
+  label: ShiftLabel,
+): Promise<{ data: ScheduleEntry[] | null; error: string | null }> {
+  if (dateKeys.length === 0) {
+    return { data: [], error: null };
+  }
+
+  const rows = dateKeys.map((dateKey) => {
+    if (label.displayType === "all_day_marker") {
+      return {
+        user_id: userId,
+        kind: "shift" as const,
+        title: label.name,
+        starts_at: toJstIso(dateKey, "00:00"),
+        ends_at: toJstIso(dateKey, "23:59"),
+        all_day: true,
+        shift_label_id: label.id,
+        time_overridden: false,
+      };
+    }
+
+    const startTime = normalizeTime(label.defaultStartTime ?? "09:00");
+    const endTime = normalizeTime(label.defaultEndTime ?? "17:00");
+    const crossesMidnight = label.endsNextDay || endTime <= startTime;
+    const endDateKey = crossesMidnight ? nextDateKey(dateKey) : dateKey;
+
+    return {
+      user_id: userId,
+      kind: "shift" as const,
+      title: label.name,
+      starts_at: toJstIso(dateKey, startTime),
+      ends_at: toJstIso(endDateKey, endTime),
+      all_day: false,
+      shift_label_id: label.id,
+      time_overridden: false,
+    };
+  });
+
+  const { data, error } = await supabase
+    .from("schedule_entries")
+    .insert(rows)
+    .select(SCHEDULE_ENTRY_SELECT);
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return {
+    data: (data ?? []).map((row) => mapScheduleEntryRow(row as ScheduleEntryRow)),
+    error: null,
+  };
+}
