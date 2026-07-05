@@ -200,6 +200,8 @@ type ScheduleDockAgendaProps = {
   eventLabelsById: ReadonlyMap<string, EventLabel>;
   onSelectTask: (taskId: string) => void;
   onSelectEntry: (entryId: string) => void;
+  /** モバイル閲覧など。クリック不可・ホバーなし。 */
+  readOnly?: boolean;
   /** `dock`: 旧 Pane 2 フッター用の固定最小高。`panel`: Pane 4 で余白を埋める。 */
   layout?: "dock" | "panel";
 };
@@ -214,6 +216,7 @@ export function ScheduleDockAgenda({
   eventLabelsById,
   onSelectTask,
   onSelectEntry,
+  readOnly = false,
   layout = "dock",
 }: ScheduleDockAgendaProps) {
   const heading = format(selectedDate, "yyyy年M月d日（EEE）", { locale: ja });
@@ -273,38 +276,60 @@ export function ScheduleDockAgenda({
                 eventLabelsById,
               );
               const onClick =
-                item.kind === "task"
-                  ? () => onSelectTask(item.task.id)
-                  : () => onSelectEntry(item.entry.id);
+                readOnly
+                  ? undefined
+                  : item.kind === "task"
+                    ? () => onSelectTask(item.task.id)
+                    : () => onSelectEntry(item.entry.id);
+
+              const rowClassName = cn(
+                "flex w-full items-start gap-2 rounded-md border-l-4 bg-card px-2 py-2 text-left",
+                agendaAccentClass(item, shiftLabelsById, eventLabelsById),
+                !readOnly &&
+                  "transition-colors hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50",
+              );
 
               return (
                 <li key={key}>
-                  <button
-                    type="button"
-                    onClick={onClick}
-                    className={cn(
-                      "flex w-full items-start gap-2 rounded-md border-l-4 bg-card px-2 py-2 text-left transition-colors",
-                      agendaAccentClass(item, shiftLabelsById, eventLabelsById),
-                      "hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50",
-                    )}
-                  >
-                    <span className="w-12 shrink-0 pt-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                      {item.timeLabel}
-                    </span>
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <span className="truncate text-xs font-medium text-foreground">
-                        {title}
+                  {readOnly ? (
+                    <div className={rowClassName}>
+                      <span className="w-12 shrink-0 pt-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                        {item.timeLabel}
                       </span>
-                      {subtitle ? (
-                        <span className="truncate text-[10px] text-muted-foreground">
-                          {subtitle}
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="truncate text-xs font-medium text-foreground">
+                          {title}
                         </span>
-                      ) : null}
+                        {subtitle ? (
+                          <span className="truncate text-[10px] text-muted-foreground">
+                            {subtitle}
+                          </span>
+                        ) : null}
+                      </div>
+                      <Badge variant="outline" size="xs" className="shrink-0">
+                        {AGENDA_KIND_LABEL[item.kind]}
+                      </Badge>
                     </div>
-                    <Badge variant="outline" size="xs" className="shrink-0">
-                      {AGENDA_KIND_LABEL[item.kind]}
-                    </Badge>
-                  </button>
+                  ) : (
+                    <button type="button" onClick={onClick} className={rowClassName}>
+                      <span className="w-12 shrink-0 pt-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                        {item.timeLabel}
+                      </span>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="truncate text-xs font-medium text-foreground">
+                          {title}
+                        </span>
+                        {subtitle ? (
+                          <span className="truncate text-[10px] text-muted-foreground">
+                            {subtitle}
+                          </span>
+                        ) : null}
+                      </div>
+                      <Badge variant="outline" size="xs" className="shrink-0">
+                        {AGENDA_KIND_LABEL[item.kind]}
+                      </Badge>
+                    </button>
+                  )}
                 </li>
               );
             })

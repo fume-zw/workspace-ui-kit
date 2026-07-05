@@ -5,9 +5,12 @@ import { Settings2 } from "lucide-react";
 
 import { InlineDateField, InlineFieldRow } from "@/components/primitives";
 import {
-  buildAllDayEventRange,
-  buildTimedEventRange,
-} from "@/lib/computed/schedule-datetime";
+  createEventDraft,
+  NO_EVENT_LABEL_VALUE,
+  toNewEventInput,
+  type EventDraft,
+  type NewEventInput,
+} from "@/lib/event-form-draft";
 import { shiftColorDotClass } from "@/lib/schedule-colors";
 import { type EventLabel } from "@/lib/schema";
 import { cn } from "@/lib/utils";
@@ -35,24 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const NO_LABEL_VALUE = "__none__";
-
-export type NewEventInput = {
-  title: string;
-  startsAt: string;
-  endsAt: string;
-  allDay: boolean;
-  eventLabelId: string | null;
-};
-
-type EventDraft = {
-  title: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  allDay: boolean;
-  eventLabelId: string | null;
-};
+export type { NewEventInput } from "@/lib/event-form-draft";
 
 type AddEventDialogProps = {
   open: boolean;
@@ -63,42 +49,6 @@ type AddEventDialogProps = {
   onManageLabels: () => void;
 };
 
-function todayDateKey(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function createDraft(defaultDate?: string): EventDraft {
-  return {
-    title: "",
-    date: defaultDate ?? todayDateKey(),
-    startTime: "09:00",
-    endTime: "10:00",
-    allDay: false,
-    eventLabelId: null,
-  };
-}
-
-function toNewEventInput(draft: EventDraft): NewEventInput | null {
-  const title = draft.title.trim();
-  if (!title || !draft.date) return null;
-
-  if (draft.allDay) {
-    const range = buildAllDayEventRange(draft.date);
-    return { title, ...range, allDay: true, eventLabelId: draft.eventLabelId };
-  }
-
-  if (!draft.startTime || !draft.endTime) return null;
-
-  const range = buildTimedEventRange(draft.date, draft.startTime, draft.endTime);
-  if (!range) return null;
-
-  return { title, ...range, allDay: false, eventLabelId: draft.eventLabelId };
-}
-
 export function AddEventDialog({
   open,
   onOpenChange,
@@ -107,7 +57,7 @@ export function AddEventDialog({
   onSave,
   onManageLabels,
 }: AddEventDialogProps) {
-  const [draft, setDraft] = useState<EventDraft>(() => createDraft(defaultDate));
+  const [draft, setDraft] = useState<EventDraft>(() => createEventDraft(defaultDate));
 
   const selectedLabel = labels.find((label) => label.id === draft.eventLabelId);
 
@@ -122,7 +72,7 @@ export function AddEventDialog({
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) setDraft(createDraft(defaultDate));
+        if (!nextOpen) setDraft(createEventDraft(defaultDate));
         onOpenChange(nextOpen);
       }}
     >
@@ -146,12 +96,13 @@ export function AddEventDialog({
               <InlineFieldRow label="ラベル">
                 <div className="flex items-center gap-2">
                   <Select
-                    value={draft.eventLabelId ?? NO_LABEL_VALUE}
+                    value={draft.eventLabelId ?? NO_EVENT_LABEL_VALUE}
                     onValueChange={(value) => {
                       if (!value) return;
                       setDraft((current) => ({
                         ...current,
-                        eventLabelId: value === NO_LABEL_VALUE ? null : value,
+                        eventLabelId:
+                          value === NO_EVENT_LABEL_VALUE ? null : value,
                       }));
                     }}
                   >
@@ -174,7 +125,7 @@ export function AddEventDialog({
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent align="start">
-                      <SelectItem value={NO_LABEL_VALUE}>ラベルなし</SelectItem>
+                      <SelectItem value={NO_EVENT_LABEL_VALUE}>ラベルなし</SelectItem>
                       {labels.map((label) => (
                         <SelectItem key={label.id} value={label.id}>
                           <span className="flex items-center gap-2">

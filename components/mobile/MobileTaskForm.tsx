@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CheckCircle2, Monitor, Plus } from "lucide-react";
+import { CheckCircle2, Plus } from "lucide-react";
 
 import { InlineDateField } from "@/components/primitives";
 import { Button } from "@/components/ui/button";
@@ -20,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { type Task } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/client";
 import {
   insertTask,
@@ -33,12 +33,14 @@ type MobileTaskFormProps = {
   statuses: TaskStatusOption[];
   projects: ProjectOption[];
   defaultStatusId: string;
+  onTaskCreated?: (task: Task) => void;
 };
 
 export function MobileTaskForm({
   statuses,
   projects,
   defaultStatusId,
+  onTaskCreated,
 }: MobileTaskFormProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -87,13 +89,16 @@ export function MobileTaskForm({
       const projectId =
         projectValue === UNASSIGNED_PROJECT_VALUE ? null : projectValue;
 
-      const { error: insertError } = await insertTask(supabase, user.id, {
+      const { data, error: insertError } = await insertTask(supabase, user.id, {
         title: trimmedTitle,
         statusId,
         dueDate: dueDate === "" ? null : dueDate,
         projectId,
       });
       if (insertError) throw new Error(insertError);
+      if (!data) throw new Error("保存に失敗しました。");
+
+      onTaskCreated?.(data);
 
       resetForm();
       setSuccess(true);
@@ -105,31 +110,11 @@ export function MobileTaskForm({
   };
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">スマホ登録</p>
-            <h1 className="text-lg font-semibold tracking-tight">タスクを追加</h1>
-          </div>
-          <Button
-            render={
-              <Link href="/" aria-label="PC ワークスペースへ">
-                <Monitor className="size-4" />
-                <span className="sr-only sm:not-sr-only sm:inline">PC</span>
-              </Link>
-            }
-            variant="outline"
-            size="sm"
-          />
-        </div>
-      </header>
-
-      <form
-        onSubmit={submit}
-        className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 py-6"
-      >
-        <FieldGroup className="gap-6">
+    <form
+      onSubmit={submit}
+      className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 py-6"
+    >
+      <FieldGroup className="gap-6">
           {error && (
             <p
               role="alert"
@@ -140,8 +125,8 @@ export function MobileTaskForm({
           )}
 
           {success && (
-            <p className="flex items-start gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-900 dark:text-emerald-100">
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+            <p className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 py-2.5 text-sm text-foreground">
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
               <span>タスクを保存しました。続けて追加できます。</span>
             </p>
           )}
@@ -240,6 +225,5 @@ export function MobileTaskForm({
           </Button>
         </div>
       </form>
-    </div>
   );
 }
