@@ -104,7 +104,7 @@ text 列ではなく **マスタテーブル + `tasks.status_id`**。ユーザ�
 | ルート | 用途 | v1 入力 |
 |--------|------|---------|
 | `/` | PC 4ペイン | 全項目 + サブタスク |
-| `/mobile` | スマホ（**v1 実装済み**） | タイトル・期限・ステータス 5 択・project（任意） |
+| `/mobile` | スマホ（予定閲覧・イベント追加まで実装済み） | タイトル・期限・ステータス 5 択・project（任意）。Watch 連携は [spec-apple-devices.md](./spec-apple-devices.md) |
 
 ### Auth（実装済み）
 
@@ -732,3 +732,14 @@ Grill（要件深掘り）で設計を確定 → 8 フェーズの実装プラ�
 | `20260611000007_tasks_recurring_link.sql` | tasks 定期タスク紐付け |
 | `20260611000008_event_labels.sql` | イベントラベル |
 | `20260611000009_schedule_label_seeds.sql` | ラベル初期 seed |
+
+---
+
+## 12. iPhone / Apple Watch 連携（要件ドラフト・未実装）
+
+2026-08-19 に修正要件を書き直した。実装は承認後。
+
+- **正本:** [spec-apple-devices.md](./spec-apple-devices.md)
+- **v1 の方式:** 本アプリが ICS を配り、iPhone の純正カレンダーが購読する。Watch はそれをミラーする（専用 Watch アプリは作らない）
+- **iPhone `/mobile`:** 当日ハブ化（初期画面を予定に、タスク完了、購読 URL の発行）
+- **やらないこと（v1）:** 手首での完了、文字盤コンプリケーション、Apple → Supabase の書き戻し

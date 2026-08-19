@@ -2,8 +2,8 @@
 
 | 項目 | 内容 |
 | --- | --- |
-| ステータス | **作り直し版**（2026-06-11 確定反映） |
-| 根拠 | [spec-task-workspace.md](./spec-task-workspace.md) §4 |
+| ステータス | **作り直し版**（2026-06-11 確定 + 2026-08-19 端末写像追記） |
+| 根拠 | [spec-task-workspace.md](./spec-task-workspace.md) §4 / [spec-apple-devices.md](./spec-apple-devices.md) |
 
 ## ペイン責務の写像
 
@@ -37,14 +37,16 @@
 
 ## クライアント写像
 
-| ルート | 用途 | v1 入力 |
+| ルート / 出口 | 用途 | 現状 |
 | --- | --- | --- |
 | `/` | PC 4 ペイン | 全項目 + サブタスク + スケジュール |
-| `/mobile` | スマホ登録（**新設予定**） | タイトル・期限・ステータス・project（任意） |
+| `/mobile` | iPhone 当日ハブ（追加・予定閲覧・イベント追加） | **実装済み**。完了操作とカレンダー購読は [spec-apple-devices.md](./spec-apple-devices.md) で追加予定 |
+| `GET /api/calendar/[token].ics` | Apple カレンダー購読（Watch はこれをミラー） | **未実装**（要件ドラフト） |
 
 ## 次の着手順
 
-1. Supabase Auth 導入
-2. `/mobile` 新設
-3. PC 4 ペイン Supabase 接続
-4. 日次レポート改修（ステータス別セクション）
+1. ~~Supabase Auth 導入~~
+2. ~~`/mobile` 新設~~
+3. ~~PC 4 ペイン Supabase 接続~~
+4. ~~日次レポート改修（ステータス別セクション）~~
+5. **iPhone / Watch 連携** — [spec-apple-devices.md](./spec-apple-devices.md) をレビューし、承認後に ICS フィードから実装
