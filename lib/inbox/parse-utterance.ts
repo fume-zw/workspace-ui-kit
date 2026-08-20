@@ -286,11 +286,10 @@ const CLOCK =
 
 function stripModifiersAround(text: string, start: number, end: number): string {
   let from = start;
-  let to = end;
   const before = text.slice(Math.max(0, start - 2), start);
   if (/(午前|午後)$/.test(before)) from -= 2;
   else if (/(朝|夜)$/.test(before)) from -= 1;
-  return text.slice(0, from) + text.slice(to);
+  return text.slice(0, from) + text.slice(end);
 }
 
 function extractTimes(text: string): {
@@ -396,7 +395,7 @@ function extractTimes(text: string): {
 }
 
 function cleanTitle(rest: string, dest: "event" | "task"): string {
-  let title = rest
+  const title = rest
     .replace(/までに?/g, "")
     .replace(/期限/g, "")
     .replace(/[、。,.]+/g, "")
