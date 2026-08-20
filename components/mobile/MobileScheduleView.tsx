@@ -86,14 +86,15 @@ export function MobileScheduleView({
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-4 px-4 py-4">
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-4">
       <ScheduleDockMiniCalendar
         selectedDate={selectedDate}
         onSelectDate={(date) => onSelectDate(startOfDay(date))}
         dueDateCounts={taskDueDateCounts}
+        density="phone"
       />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+      <div className="rounded-lg border border-border bg-card">
         <ScheduleDockAgenda
           selectedDate={selectedDate}
           onSelectDate={(date) => onSelectDate(startOfDay(date))}
@@ -103,7 +104,7 @@ export function MobileScheduleView({
           eventLabelsById={eventLabelsById}
           onSelectTask={onSelectTask}
           onSelectEntry={onSelectEntry}
-          layout="panel"
+          layout="stack"
         />
       </div>
 

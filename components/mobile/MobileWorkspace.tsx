@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Inbox, ListTodo, Monitor, RefreshCw } from "lucide-react";
 
 import { MobileEventForm } from "@/components/mobile/MobileEventForm";
-import { MobileInboxHelp } from "@/components/mobile/MobileInboxHelp";
 import { MobileScheduleView } from "@/components/mobile/MobileScheduleView";
 import { MobileTaskEditDialog } from "@/components/mobile/MobileTaskEditDialog";
 import { MobileTaskForm } from "@/components/mobile/MobileTaskForm";
@@ -230,7 +229,6 @@ export function MobileWorkspace({
             defaultStatusId={defaultStatusId}
             onTaskCreated={handleTaskCreated}
           />
-          <MobileInboxHelp />
         </div>
       ) : scheduleView === "add-event" ? (
         <MobileEventForm
@@ -257,12 +255,6 @@ export function MobileWorkspace({
           }}
         />
       )}
-
-      {tab === "schedule" && scheduleView === "list" ? (
-        <div className="mx-auto w-full max-w-lg px-4 pb-6">
-          <MobileInboxHelp />
-        </div>
-      ) : null}
 
       <MobileTaskEditDialog
         key={selectedTask?.id ?? "none"}

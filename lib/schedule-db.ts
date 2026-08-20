@@ -138,6 +138,55 @@ export async function fetchScheduleData(
   };
 }
 
+export async function fetchScheduleDataForUser(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<{ data: ScheduleData | null; error: string | null }> {
+  const [labelResult, eventLabelResult, entryResult] = await Promise.all([
+    supabase
+      .from("shift_labels")
+      .select(SHIFT_LABEL_SELECT)
+      .eq("user_id", userId)
+      .is("archived_at", null)
+      .order("sort_order"),
+    supabase
+      .from("event_labels")
+      .select(EVENT_LABEL_SELECT)
+      .eq("user_id", userId)
+      .is("archived_at", null)
+      .order("sort_order"),
+    supabase
+      .from("schedule_entries")
+      .select(SCHEDULE_ENTRY_SELECT)
+      .eq("user_id", userId)
+      .order("starts_at"),
+  ]);
+
+  const error =
+    labelResult.error?.message ??
+    eventLabelResult.error?.message ??
+    entryResult.error?.message ??
+    null;
+  if (error) {
+    return { data: null, error };
+  }
+
+  return {
+    data: {
+      shiftLabels: (labelResult.data ?? []).map((row) =>
+        mapShiftLabelRow(row as ShiftLabelRow),
+      ),
+      eventLabels: (eventLabelResult.data ?? []).map((row) =>
+        mapEventLabelRow(row as EventLabelRow),
+      ),
+      scheduleEntries: (entryResult.data ?? []).map((row) =>
+        mapScheduleEntryRow(row as ScheduleEntryRow),
+      ),
+    },
+    error: null,
+  };
+}
+
 export type ShiftLabelInsert = {
   name: string;
   displayType: ShiftLabelDisplayType;
