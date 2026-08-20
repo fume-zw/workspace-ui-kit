@@ -162,7 +162,7 @@ Watch / iPhone / Windows / カレンダー連携の修正要件は [spec-apple-d
 | **workspace-ui-kit `/mobile`** | iPhone 向け当日ハブ。タスク追加・予定閲覧・イベント追加に加え、**完了**とカレンダー購読設定を足す（詳細は [spec-apple-devices.md](./spec-apple-devices.md)） |
 | **workspace-ui-kit `/`** | PC 4 ペイン。プロジェクト割当・サブタスク・スケジュール |
 | **ICS フィード** | Google カレンダーと Apple カレンダー（→ Watch ミラー）向けの読み取り専用投影。正本ではない |
-| **inbox API** | Watch の Siri ショートカットから発話全文を受け取る。常に未割当。期限は言ったときだけ |
+| **inbox API** | Watch の発話を、開始時刻があればイベント、なければ未割当タスクへ振り分ける |
 | **自動報告ツール** | 日次レポート。**DB を読むだけ**。**ステータス別**にセクション分け（§5.9） |
 
 ### 5.3 正本データと実装フェーズ
