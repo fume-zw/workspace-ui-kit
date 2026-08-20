@@ -81,11 +81,13 @@ type ScheduleDockCalendarDayButtonProps = React.ComponentProps<
   typeof CalendarDayButton
 > & {
   dueDateCounts: ReadonlyMap<string, number>;
+  density?: "dock" | "phone";
 };
 
-/** 日付は上段の大きな数字、タスク件数は下段の「n件」チップで日付と混同しないようにする */
+/** 日付は上段の大きな数字。PC は「n件」チップ、スマホは点が日付と混同しない目印になる */
 function ScheduleDockCalendarDayButton({
   dueDateCounts,
+  density = "dock",
   className,
   ...props
 }: ScheduleDockCalendarDayButtonProps) {
@@ -97,6 +99,7 @@ function ScheduleDockCalendarDayButton({
   const dow = day.date.getDay();
   const isSunday = dow === 0;
   const isSaturday = dow === 6;
+  const countLabel = count > 0 ? `この日が期限のタスク ${count} 件` : undefined;
 
   return (
     <CalendarDayButton
@@ -111,15 +114,24 @@ function ScheduleDockCalendarDayButton({
         "data-[selected-single=true]:shadow-none data-[selected-single=true]:ring-0 data-[selected-single=true]:ring-offset-0",
         "data-[selected-single=true]:outline-none",
         "data-[selected-single=true]:focus-visible:border-ring data-[selected-single=true]:focus-visible:ring-0 data-[selected-single=true]:focus-visible:outline-none",
-        "group-data-[focused=true]/day:data-[selected-single=true]:border-ring group-data-[focused=true]/day:data-[selected-single=true]:ring-0 group-data-[focused=true]/day:data-[selected-single=true]:shadow-none",
+        "group-data-[focused=true]/day:data-[selected-single=true]:border-ring group-data-[focused=true]/day:data-[selected-single=true]:shadow-none group-data-[focused=true]/day:data-[selected-single=true]:ring-0",
         /* 親セルが正方形でも中身の min-height で縦長に歪ませない */
         "box-border max-h-full min-h-0 min-w-0",
+        density === "phone" && "z-0 shrink overflow-hidden",
       )}
     >
-      <div className="pointer-events-none flex max-h-full min-h-0 w-full flex-col items-center justify-start gap-0 px-0.5 pb-0.5 pt-1">
+      <div
+        className={cn(
+          "pointer-events-none flex max-h-full min-h-0 w-full flex-col items-center gap-0 px-0.5",
+          density === "phone"
+            ? "justify-center py-0.5"
+            : "justify-start pt-1 pb-0.5",
+        )}
+      >
         <span
           className={cn(
-            "text-center text-sm font-semibold tabular-nums leading-none tracking-normal",
+            "text-center leading-none font-semibold tracking-normal tabular-nums",
+            density === "phone" ? "text-xs" : "text-sm",
             modifiers.outside || modifiers.disabled
               ? "text-muted-foreground"
               : isSunday
@@ -131,18 +143,28 @@ function ScheduleDockCalendarDayButton({
         >
           {dayNum}
         </span>
-        {/* チップの有無で日付が縦にずれないよう、下段は常に同じ最小高さを確保 */}
-        <div className="flex min-h-5 w-full shrink-0 flex-col items-center justify-center">
-          {count > 0 ? (
-            <span
-              className="rounded-md border border-border bg-muted px-1 py-px text-center text-[10px] leading-none font-medium whitespace-nowrap tabular-nums text-muted-foreground"
-              title={`この日が期限のタスク ${count} 件`}
-            >
-              <span aria-hidden="true">{count}</span>
-              <span className="text-[9px]">件</span>
-            </span>
-          ) : null}
-        </div>
+        {density === "phone" ? (
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              count > 0 ? "bg-muted-foreground" : "bg-transparent",
+            )}
+            title={countLabel}
+            aria-hidden="true"
+          />
+        ) : (
+          <div className="flex min-h-5 w-full shrink-0 flex-col items-center justify-center">
+            {count > 0 ? (
+              <span
+                className="rounded-md border border-border bg-muted px-1 py-px text-center text-[10px] leading-none font-medium whitespace-nowrap text-muted-foreground tabular-nums"
+                title={countLabel}
+              >
+                <span aria-hidden="true">{count}</span>
+                <span className="text-[9px]">件</span>
+              </span>
+            ) : null}
+          </div>
+        )}
       </div>
     </CalendarDayButton>
   );
@@ -168,10 +190,11 @@ export function ScheduleDockMiniCalendar({
     (btnProps: React.ComponentProps<typeof CalendarDayButton>) => (
       <ScheduleDockCalendarDayButton
         {...btnProps}
+        density={density}
         dueDateCounts={dueDateCounts}
       />
     ),
-    [dueDateCounts],
+    [density, dueDateCounts],
   );
 
   return (
@@ -187,11 +210,20 @@ export function ScheduleDockMiniCalendar({
       components={{
         DayButton,
       }}
-      className={cn(
-        "w-full overflow-visible rounded-lg border border-border bg-background px-1.5 py-2 [--cell-radius:var(--radius-sm)]",
+      classNames={
         density === "phone"
-          ? "[--cell-size:--spacing(11)]"
-          : "[--cell-size:--spacing(6)]",
+          ? {
+              months: "gap-2",
+              month: "gap-2",
+              week: "mt-1 flex w-full gap-0.5",
+            }
+          : undefined
+      }
+      className={cn(
+        "w-full rounded-lg border border-border bg-background px-1.5 py-2 [--cell-radius:var(--radius-sm)]",
+        density === "phone"
+          ? "isolate overflow-hidden [--cell-size:--spacing(10)]"
+          : "overflow-visible [--cell-size:--spacing(6)]",
       )}
     />
   );
@@ -230,85 +262,88 @@ export function ScheduleDockAgenda({
   const heading = format(selectedDate, "yyyy年M月d日（EEE）", { locale: ja });
 
   const agendaList = (
-        <ul className="flex flex-col gap-1 pr-2 pb-1">
-          {items.length === 0 ? (
-            <li className="py-6 text-center text-xs text-muted-foreground">
-              この日の予定・タスクはありません。
+    <ul className="flex flex-col gap-1 pr-2 pb-1">
+      {items.length === 0 ? (
+        <li className="py-6 text-center text-xs text-muted-foreground">
+          この日の予定・タスクはありません。
+        </li>
+      ) : (
+        items.map((item) => {
+          const key =
+            item.kind === "task"
+              ? `task:${item.task.id}`
+              : `${item.kind}:${item.entry.id}`;
+          const title =
+            item.kind === "task" ? item.task.title : item.entry.title;
+          const subtitle = agendaSubtitle(
+            item,
+            projects,
+            shiftLabelsById,
+            eventLabelsById,
+          );
+          const onClick = readOnly
+            ? undefined
+            : item.kind === "task"
+              ? () => onSelectTask(item.task.id)
+              : () => onSelectEntry(item.entry.id);
+
+          const rowClassName = cn(
+            "flex w-full items-start gap-2 rounded-md border-l-4 bg-card px-2 py-2 text-left",
+            agendaAccentClass(item, shiftLabelsById, eventLabelsById),
+            !readOnly &&
+              "transition-colors hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50",
+          );
+
+          return (
+            <li key={key}>
+              {readOnly ? (
+                <div className={rowClassName}>
+                  <span className="w-12 shrink-0 pt-0.5 text-[10px] font-medium text-muted-foreground tabular-nums">
+                    {item.timeLabel}
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="truncate text-xs font-medium text-foreground">
+                      {title}
+                    </span>
+                    {subtitle ? (
+                      <span className="truncate text-[10px] text-muted-foreground">
+                        {subtitle}
+                      </span>
+                    ) : null}
+                  </div>
+                  <Badge variant="outline" size="xs" className="shrink-0">
+                    {AGENDA_KIND_LABEL[item.kind]}
+                  </Badge>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onClick}
+                  className={rowClassName}
+                >
+                  <span className="w-12 shrink-0 pt-0.5 text-[10px] font-medium text-muted-foreground tabular-nums">
+                    {item.timeLabel}
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="truncate text-xs font-medium text-foreground">
+                      {title}
+                    </span>
+                    {subtitle ? (
+                      <span className="truncate text-[10px] text-muted-foreground">
+                        {subtitle}
+                      </span>
+                    ) : null}
+                  </div>
+                  <Badge variant="outline" size="xs" className="shrink-0">
+                    {AGENDA_KIND_LABEL[item.kind]}
+                  </Badge>
+                </button>
+              )}
             </li>
-          ) : (
-            items.map((item) => {
-              const key =
-                item.kind === "task"
-                  ? `task:${item.task.id}`
-                  : `${item.kind}:${item.entry.id}`;
-              const title =
-                item.kind === "task" ? item.task.title : item.entry.title;
-              const subtitle = agendaSubtitle(
-                item,
-                projects,
-                shiftLabelsById,
-                eventLabelsById,
-              );
-              const onClick =
-                readOnly
-                  ? undefined
-                  : item.kind === "task"
-                    ? () => onSelectTask(item.task.id)
-                    : () => onSelectEntry(item.entry.id);
-
-              const rowClassName = cn(
-                "flex w-full items-start gap-2 rounded-md border-l-4 bg-card px-2 py-2 text-left",
-                agendaAccentClass(item, shiftLabelsById, eventLabelsById),
-                !readOnly &&
-                  "transition-colors hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50",
-              );
-
-              return (
-                <li key={key}>
-                  {readOnly ? (
-                    <div className={rowClassName}>
-                      <span className="w-12 shrink-0 pt-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                        {item.timeLabel}
-                      </span>
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="truncate text-xs font-medium text-foreground">
-                          {title}
-                        </span>
-                        {subtitle ? (
-                          <span className="truncate text-[10px] text-muted-foreground">
-                            {subtitle}
-                          </span>
-                        ) : null}
-                      </div>
-                      <Badge variant="outline" size="xs" className="shrink-0">
-                        {AGENDA_KIND_LABEL[item.kind]}
-                      </Badge>
-                    </div>
-                  ) : (
-                    <button type="button" onClick={onClick} className={rowClassName}>
-                      <span className="w-12 shrink-0 pt-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                        {item.timeLabel}
-                      </span>
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="truncate text-xs font-medium text-foreground">
-                          {title}
-                        </span>
-                        {subtitle ? (
-                          <span className="truncate text-[10px] text-muted-foreground">
-                            {subtitle}
-                          </span>
-                        ) : null}
-                      </div>
-                      <Badge variant="outline" size="xs" className="shrink-0">
-                        {AGENDA_KIND_LABEL[item.kind]}
-                      </Badge>
-                    </button>
-                  )}
-                </li>
-              );
-            })
-          )}
-        </ul>
+          );
+        })
+      )}
+    </ul>
   );
 
   return (

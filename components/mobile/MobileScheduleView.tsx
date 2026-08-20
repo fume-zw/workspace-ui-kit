@@ -86,15 +86,17 @@ export function MobileScheduleView({
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 py-4">
-      <ScheduleDockMiniCalendar
-        selectedDate={selectedDate}
-        onSelectDate={(date) => onSelectDate(startOfDay(date))}
-        dueDateCounts={taskDueDateCounts}
-        density="phone"
-      />
+    <div className="mx-auto flex w-full max-w-lg min-w-0 flex-col gap-4 px-4 py-4">
+      <div className="relative isolate min-w-0 shrink-0">
+        <ScheduleDockMiniCalendar
+          selectedDate={selectedDate}
+          onSelectDate={(date) => onSelectDate(startOfDay(date))}
+          dueDateCounts={taskDueDateCounts}
+          density="phone"
+        />
+      </div>
 
-      <div className="rounded-lg border border-border bg-card">
+      <div className="relative min-w-0 rounded-lg border border-border bg-card">
         <ScheduleDockAgenda
           selectedDate={selectedDate}
           onSelectDate={(date) => onSelectDate(startOfDay(date))}
@@ -110,10 +112,16 @@ export function MobileScheduleView({
 
       <p className="text-center text-xs text-muted-foreground">
         <CalendarDays className="mr-1 inline size-3.5 align-text-bottom" />
-        タスクをタップして完了・割当、イベントをタップして時刻を直せます。勤務の編集は PC からです。
+        タスクをタップして完了・割当、イベントをタップして時刻を直せます。勤務の編集は
+        PC からです。
       </p>
 
-      <Button type="button" size="lg" className="h-12 w-full shrink-0 text-base" onClick={onOpenAddEvent}>
+      <Button
+        type="button"
+        size="lg"
+        className="h-12 w-full shrink-0 text-base"
+        onClick={onOpenAddEvent}
+      >
         <Plus className="size-4" />
         イベントを追加
       </Button>
