@@ -153,6 +153,8 @@ type ScheduleDockMiniCalendarProps = {
   onSelectDate: (date: Date) => void;
   /** 日付キー（yyyy-MM-dd）ごとのタスク件数（全プロジェクト合算） */
   dueDateCounts: ReadonlyMap<string, number>;
+  /** `phone`: タップしやすいセル。既定は PC ドック向けの密なセル。 */
+  density?: "dock" | "phone";
 };
 
 /** Pane 4 上部などに置くコンパクト月カレンダー（期限のある日に件数チップを表示） */
@@ -160,6 +162,7 @@ export function ScheduleDockMiniCalendar({
   selectedDate,
   onSelectDate,
   dueDateCounts,
+  density = "dock",
 }: ScheduleDockMiniCalendarProps) {
   const DayButton = React.useCallback(
     (btnProps: React.ComponentProps<typeof CalendarDayButton>) => (
@@ -173,7 +176,7 @@ export function ScheduleDockMiniCalendar({
 
   return (
     <Calendar
-      key={format(selectedDate, "yyyy-MM-dd")}
+      key={format(selectedDate, "yyyy-MM")}
       mode="single"
       selected={selectedDate}
       onSelect={(date) => {
@@ -184,7 +187,12 @@ export function ScheduleDockMiniCalendar({
       components={{
         DayButton,
       }}
-      className="w-full overflow-visible rounded-lg border border-border bg-background px-1.5 py-2 [--cell-radius:var(--radius-sm)] [--cell-size:--spacing(6)]"
+      className={cn(
+        "w-full overflow-visible rounded-lg border border-border bg-background px-1.5 py-2 [--cell-radius:var(--radius-sm)]",
+        density === "phone"
+          ? "[--cell-size:--spacing(11)]"
+          : "[--cell-size:--spacing(6)]",
+      )}
     />
   );
 }
@@ -202,8 +210,8 @@ type ScheduleDockAgendaProps = {
   onSelectEntry: (entryId: string) => void;
   /** モバイル閲覧など。クリック不可・ホバーなし。 */
   readOnly?: boolean;
-  /** `dock`: 旧 Pane 2 フッター用の固定最小高。`panel`: Pane 4 で余白を埋める。 */
-  layout?: "dock" | "panel";
+  /** `dock`: 旧 Pane 2 フッター用の固定最小高。`panel`: Pane 4 で余白を埋める。`stack`: ページ縦スクロール（モバイル）。 */
+  layout?: "dock" | "panel" | "stack";
 };
 
 /** 選択日の予定・タスクを時刻順に並べたアジェンダ（ミニ Google カレンダー相当） */
@@ -221,41 +229,7 @@ export function ScheduleDockAgenda({
 }: ScheduleDockAgendaProps) {
   const heading = format(selectedDate, "yyyy年M月d日（EEE）", { locale: ja });
 
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-2 border-t border-border bg-card p-2",
-        layout === "dock" && "min-h-56 shrink-0",
-        layout === "panel" && "min-h-0 flex-1",
-      )}
-    >
-      <div className="flex items-center gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="前の日"
-          className="shrink-0"
-          onClick={() => onSelectDate(startOfDay(addDays(selectedDate, -1)))}
-        >
-          <ChevronLeft />
-        </Button>
-        <p className="min-w-0 flex-1 truncate text-center text-xs font-semibold text-foreground">
-          {heading}
-        </p>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="次の日"
-          className="shrink-0"
-          onClick={() => onSelectDate(startOfDay(addDays(selectedDate, 1)))}
-        >
-          <ChevronRight />
-        </Button>
-      </div>
-
-      <ScrollArea className="min-h-0 flex-1">
+  const agendaList = (
         <ul className="flex flex-col gap-1 pr-2 pb-1">
           {items.length === 0 ? (
             <li className="py-6 text-center text-xs text-muted-foreground">
@@ -335,7 +309,49 @@ export function ScheduleDockAgenda({
             })
           )}
         </ul>
-      </ScrollArea>
+  );
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2 bg-card p-2",
+        layout !== "stack" && "border-t border-border",
+        layout === "dock" && "min-h-56 shrink-0",
+        layout === "panel" && "min-h-0 flex-1",
+        layout === "stack" && "shrink-0",
+      )}
+    >
+      <div className="flex items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label="前の日"
+          className="shrink-0"
+          onClick={() => onSelectDate(startOfDay(addDays(selectedDate, -1)))}
+        >
+          <ChevronLeft />
+        </Button>
+        <p className="min-w-0 flex-1 truncate text-center text-xs font-semibold text-foreground">
+          {heading}
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label="次の日"
+          className="shrink-0"
+          onClick={() => onSelectDate(startOfDay(addDays(selectedDate, 1)))}
+        >
+          <ChevronRight />
+        </Button>
+      </div>
+
+      {layout === "stack" ? (
+        agendaList
+      ) : (
+        <ScrollArea className="min-h-0 flex-1">{agendaList}</ScrollArea>
+      )}
     </div>
   );
 }

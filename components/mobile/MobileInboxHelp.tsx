@@ -2,41 +2,62 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+const INBOX_URL = "https://task-workspace-psi.vercel.app/api/inbox";
+const AGENDA_URL = "https://task-workspace-psi.vercel.app/api/agenda";
+
 export function MobileInboxHelp() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Watch から追加する</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
-        <p>
-          iPhone のショートカットに「追加」を1つ作り、Watch の Siri から呼び出します。トークンは
-          Vercel の環境変数 <code className="rounded bg-muted px-1 py-0.5 text-xs">INBOX_TOKEN</code>{" "}
-          を使います（画面には出しません）。
-        </p>
-        <ol className="flex list-decimal flex-col gap-2 pl-4">
-          <li>「テキスト」を尋ねる</li>
-          <li>
-            URL{" "}
-            <code className="break-all rounded bg-muted px-1 py-0.5 text-xs">
-              https://task-workspace-psi.vercel.app/api/inbox
-            </code>{" "}
-            に POST する。ヘッダ{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">
-              Authorization: Bearer （トークン）
-            </code>
-            。本文は JSON{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">
-              {"{ \"text\": 尋ねた内容 }"}
-            </code>
-          </li>
-          <li>応答の speak を読み上げる</li>
-        </ol>
-        <p>
-          「週報をタスクに入れて」「14時から会議をスケジュールに入れて」のように行き先を言います。
-          同じ文を1分以内に言い直しても増えません。開き直すと一覧に出ます。
-        </p>
-      </CardContent>
-    </Card>
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Watch から追加する</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
+          <p>
+            ショートカット名は「追加」。トークンは Vercel の{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">INBOX_TOKEN</code>
+            （画面には出しません）。
+          </p>
+          <ol className="flex list-decimal flex-col gap-2 pl-4">
+            <li>「入力を要求」（テキスト）</li>
+            <li>
+              <code className="break-all rounded bg-muted px-1 py-0.5 text-xs">
+                {INBOX_URL}
+              </code>{" "}
+              に POST。ヘッダ{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                Authorization: Bearer （トークン）
+              </code>
+              。JSON の <code className="rounded bg-muted px-1 py-0.5 text-xs">text</code> に
+              「入力を要求」
+            </li>
+            <li>応答の speak を読み上げる</li>
+          </ol>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Watch で今日の予定を聞く</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
+          <p>
+            別ショートカット「今日の予定」。同じトークン。入力は不要です。Watch
+            のカレンダーアプリではなく、Siri が今日の予定を読み上げます。
+          </p>
+          <ol className="flex list-decimal flex-col gap-2 pl-4">
+            <li>
+              <code className="break-all rounded bg-muted px-1 py-0.5 text-xs">
+                {AGENDA_URL}
+              </code>{" "}
+              を GET。ヘッダは追加と同じ Bearer
+            </li>
+            <li>応答の speak を読み上げる</li>
+            <li>詳細で Apple Watch に表示をオン</li>
+          </ol>
+          <p>「Hey Siri、今日の予定」で、その日のイベント・勤務・期限タスクを読みます。</p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

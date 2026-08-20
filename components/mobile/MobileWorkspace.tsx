@@ -258,12 +258,6 @@ export function MobileWorkspace({
         />
       )}
 
-      {tab === "schedule" && scheduleView === "list" ? (
-        <div className="mx-auto w-full max-w-lg px-4 pb-6">
-          <MobileInboxHelp />
-        </div>
-      ) : null}
-
       <MobileTaskEditDialog
         key={selectedTask?.id ?? "none"}
         task={selectedTask}

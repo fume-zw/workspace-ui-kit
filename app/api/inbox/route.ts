@@ -1,6 +1,5 @@
-import { timingSafeEqual } from "crypto";
-
 import { persistInboxEvent, persistInboxTask } from "@/lib/inbox/persist";
+import { requireInboxAuth } from "@/lib/inbox/auth";
 import {
   formatInboxWhen,
   normalizeUtterance,
@@ -38,20 +37,6 @@ function json(body: InboxSuccess | InboxFailure, status: number) {
   return Response.json(body, { status });
 }
 
-function tokensEqual(provided: string, expected: string): boolean {
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
-function readBearer(request: Request): string | null {
-  const header = request.headers.get("authorization");
-  if (!header) return null;
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || null;
-}
-
 function pruneDedupe(now: number) {
   for (const [key, entry] of dedupe) {
     if (now - entry.at > DEDUPE_MS) dedupe.delete(key);
@@ -83,16 +68,11 @@ function successPayload(parsed: ParsedInbox, id: string): InboxSuccess {
 }
 
 export async function POST(request: Request) {
-  const expectedToken = process.env.INBOX_TOKEN ?? "";
-  const userId = process.env.INBOX_USER_ID ?? "";
-  if (!expectedToken || !userId) {
-    return json({ ok: false, speak: "設定が不足しています" }, 503);
+  const auth = requireInboxAuth(request);
+  if (!auth.ok) {
+    return json({ ok: false, speak: auth.speak }, auth.status);
   }
-
-  const provided = readBearer(request);
-  if (!provided || !tokensEqual(provided, expectedToken)) {
-    return json({ ok: false, speak: "認証に失敗しました" }, 401);
-  }
+  const { userId } = auth;
 
   let text = "";
   try {
