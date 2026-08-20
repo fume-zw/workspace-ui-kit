@@ -1,7 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/api/inbox", "/api/agenda"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/auth/callback",
+  "/api/inbox",
+  "/api/agenda",
+  "/api/calendar",
+];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some(
@@ -16,7 +22,9 @@ export async function updateSession(request: NextRequest) {
     pathname === "/api/inbox" ||
     pathname.startsWith("/api/inbox/") ||
     pathname === "/api/agenda" ||
-    pathname.startsWith("/api/agenda/")
+    pathname.startsWith("/api/agenda/") ||
+    pathname === "/api/calendar" ||
+    pathname.startsWith("/api/calendar/")
   ) {
     return NextResponse.next({ request });
   }

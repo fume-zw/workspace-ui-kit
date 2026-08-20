@@ -14,6 +14,10 @@ function tokensEqual(provided: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+export function secretsEqual(provided: string, expected: string): boolean {
+  return tokensEqual(provided, expected);
+}
+
 export function requireInboxAuth(
   request: Request,
 ): { ok: true; userId: string } | { ok: false; speak: string; status: number } {
