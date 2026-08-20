@@ -64,11 +64,12 @@
 | --- | --- |
 | スマホからの当日確認・タスク追加・軽い更新 | **workspace-ui-kit `/mobile`** |
 | PC でのプロジェクト割当・サブタスク編集・4 ペイン作業 | **workspace-ui-kit `/`** |
-| Apple Watch での予定閲覧・開始/期限の通知 | **iPhone 純正カレンダーの購読**（本アプリの Watch 画面は持たない） |
+| Apple Watch での予定確認 | **iPhone 純正カレンダーの購読**（本アプリの Watch 画面は持たない） |
+| Apple Watch からのタスク追加 | **Siri ショートカット → inbox API**（詳細は [spec-apple-devices.md](./spec-apple-devices.md)） |
 
 同一 Supabase プロジェクト・同一認証（メール + パスワード）。セッションはアプリ内で共有（単一 Next.js アプリ）。
 
-Watch / iPhone 連携の修正要件は [spec-apple-devices.md](./spec-apple-devices.md) が正本。本ファイルの 4 ペイン責務は上書きしない。
+Watch / iPhone / Windows / カレンダー連携の修正要件は [spec-apple-devices.md](./spec-apple-devices.md) が正本。本ファイルの 4 ペイン責務は上書きしない。カレンダーは見える化だけ行い、タスクの正本は自作アプリに置く。
 
 ## 4. ドメインと 4 ペイン責務
 
@@ -160,7 +161,8 @@ Watch / iPhone 連携の修正要件は [spec-apple-devices.md](./spec-apple-dev
 | --- | --- |
 | **workspace-ui-kit `/mobile`** | iPhone 向け当日ハブ。タスク追加・予定閲覧・イベント追加に加え、**完了**とカレンダー購読設定を足す（詳細は [spec-apple-devices.md](./spec-apple-devices.md)） |
 | **workspace-ui-kit `/`** | PC 4 ペイン。プロジェクト割当・サブタスク・スケジュール |
-| **ICS フィード** | Apple カレンダー（→ Watch ミラー）向けの読み取り専用投影。正本ではない |
+| **ICS フィード** | Google カレンダーと Apple カレンダー（→ Watch ミラー）向けの読み取り専用投影。正本ではない |
+| **inbox API** | Watch の Siri ショートカットからタスクタイトルを受け取る書き込み口 |
 | **自動報告ツール** | 日次レポート。**DB を読むだけ**。**ステータス別**にセクション分け（§5.9） |
 
 ### 5.3 正本データと実装フェーズ
@@ -293,9 +295,9 @@ Watch / iPhone 連携の修正要件は [spec-apple-devices.md](./spec-apple-dev
 - 明示的な編集競合解決 UI。
 - `genre` / `sub_status` 既存値の自動移行。
 - レポートの「完了待ち」セクション。
-- **ネイティブ iOS / watchOS アプリ**（文字盤コンプリケーション、手首での完了）。Watch 連携 v1 はカレンダー購読。詳細は [spec-apple-devices.md](./spec-apple-devices.md) §7。
-- Apple カレンダーから本アプリへの書き戻し。
-- HealthKit / Reminders.app / ショートカット連携。
+- **ネイティブ iOS / watchOS アプリ**（文字盤コンプリケーション、手首での完了、音声での予定追加）。Watch v1 はカレンダー閲覧 + Siri ショートカットのタスク追加。詳細は [spec-apple-devices.md](./spec-apple-devices.md) §7。
+- Google / Apple カレンダーから本アプリへの書き戻し。
+- HealthKit / Reminders.app。音声入力に使うショートカットは v1 の範囲。
 
 ## 7. 要件確定事項
 
@@ -334,11 +336,11 @@ Watch / iPhone 連携の修正要件は [spec-apple-devices.md](./spec-apple-dev
 6. ~~日次レポート改修~~ — 完了
 7. ~~お試し `web/` 廃止~~ — 完了
 8. ~~`20260611000003` 適用~~ — 完了
-9. **iPhone / Apple Watch 連携** — [spec-apple-devices.md](./spec-apple-devices.md) のレビュー（§8 未決）→ 承認後に ICS フィードから実装
+9. **端末連携** — [spec-apple-devices.md](./spec-apple-devices.md) のレビュー（正本は自作、カレンダーは投影、Watch は閲覧+音声追加）→ 承認後に ICS と inbox API から実装
 
 ## 9. 参考
 
-- `docs/spec-apple-devices.md` — iPhone / Apple Watch 連携の修正要件
+- `docs/spec-apple-devices.md` — Watch / iPhone / Windows / カレンダー連携の修正要件
 - `docs/handoff.md` — 引き継ぎメモ
 - `docs/pane-mapping-task-workspace.md` — ペイン写像表
 - `supabase/migrations/*.sql` — スキーマ草案

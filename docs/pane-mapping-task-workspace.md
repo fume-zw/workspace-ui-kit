@@ -40,8 +40,9 @@
 | ルート / 出口 | 用途 | 現状 |
 | --- | --- | --- |
 | `/` | PC 4 ペイン | 全項目 + サブタスク + スケジュール |
-| `/mobile` | iPhone 当日ハブ（追加・予定閲覧・イベント追加） | **実装済み**。完了操作とカレンダー購読は [spec-apple-devices.md](./spec-apple-devices.md) で追加予定 |
-| `GET /api/calendar/[token].ics` | Apple カレンダー購読（Watch はこれをミラー） | **未実装**（要件ドラフト） |
+| `/mobile` | iPhone。予定の確認・編集とタスク追加 | **一部実装済み**。編集・完了・カレンダー設定は [spec-apple-devices.md](./spec-apple-devices.md) |
+| `GET /api/calendar/[token].ics` | Google / Apple カレンダー購読（Watch は Apple をミラー） | **未実装** |
+| `POST /api/inbox` | Watch の音声タスク追加（Siri ショートカット） | **未実装** |
 
 ## 次の着手順
 
@@ -49,4 +50,4 @@
 2. ~~`/mobile` 新設~~
 3. ~~PC 4 ペイン Supabase 接続~~
 4. ~~日次レポート改修（ステータス別セクション）~~
-5. **iPhone / Watch 連携** — [spec-apple-devices.md](./spec-apple-devices.md) をレビューし、承認後に ICS フィードから実装
+5. **端末連携** — [spec-apple-devices.md](./spec-apple-devices.md) をレビューし、承認後に ICS と音声 inbox から実装
