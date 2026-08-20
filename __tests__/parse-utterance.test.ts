@@ -24,6 +24,16 @@ describe("parseUtterance", () => {
     });
   });
 
+  it("treats のタスクを入れて as a task destination", () => {
+    const parsed = parseUtterance("試薬発注のタスクを入れて", NOW);
+    expect(parsed).toEqual({
+      kind: "task",
+      title: "試薬発注",
+      dueDate: null,
+    });
+    expect(speakInboxSuccess(parsed)).toBe("「試薬発注」をタスクに入れました");
+  });
+
   it("sets a due date when まで is present", () => {
     const parsed = parseUtterance("明日まで週報、タスクに入れて", NOW);
     expect(parsed).toEqual({

@@ -34,11 +34,17 @@ const WEEKDAY_INDEX: Record<string, number> = {
 
 const DEST_PHRASES: { phrase: string; dest: "event" | "task" }[] = [
   { phrase: "スケジュールに入れといて", dest: "event" },
+  { phrase: "スケジュールを入れといて", dest: "event" },
   { phrase: "スケジュールに入れて", dest: "event" },
+  { phrase: "スケジュールを入れて", dest: "event" },
   { phrase: "予定に入れといて", dest: "event" },
+  { phrase: "予定を入れといて", dest: "event" },
   { phrase: "予定に入れて", dest: "event" },
+  { phrase: "予定を入れて", dest: "event" },
   { phrase: "タスクに入れといて", dest: "task" },
+  { phrase: "タスクを入れといて", dest: "task" },
   { phrase: "タスクに入れて", dest: "task" },
+  { phrase: "タスクを入れて", dest: "task" },
   { phrase: "タスクにして", dest: "task" },
 ];
 
