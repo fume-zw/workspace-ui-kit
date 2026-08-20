@@ -4,13 +4,13 @@
 | --- | --- |
 | ステータス | **作り直し版ドラフト**（2026-06-11 方針確定反映） |
 | 作成日 | 2026-05-14 |
-| 最終更新 | 2026-06-11（作り直し方針・6 論点確定反映） |
+| 最終更新 | 2026-08-20（R-1〜R-10 確定・フェーズ 1〜2 実装） |
 | 対象リポジトリ | `workspace-ui-kit`（PC 4 ペイン + スマホ `/mobile` を集約） |
 | 連携先 | `C:\Users\うめ\Desktop\My-First-Project\自動報告ツール`（日次レポートのみ。`web/` は廃止予定） |
 
 ## 1. 目的
 
-採用管理サンプルを土台に、**プロジェクト・タスク業務**で使える **4 ペインワークスペース**を構築する。Supabase を正本とし、**スマホからの軽いタスク追加**（`/mobile`）と **PC での深い作業**（4 ペイン）を **同一リポジトリ・同一 Supabase** で両立する。
+採用管理サンプルを土台に、**プロジェクト・タスク業務**で使える **4 ペインワークスペース**を構築する。Supabase を正本とし、**iPhone の当日ハブ**（`/mobile`）と **PC での深い作業**（4 ペイン）を同一リポジトリ・同一 Supabase で両立する。Apple Watch は本アプリの画面を持たず、**Siri ショートカットで追加**し、カレンダー購読は使い始めてから予定確認に使う（[spec-apple-devices.md](./spec-apple-devices.md)）。
 
 ## 2. 背景と前提
 
@@ -58,14 +58,18 @@
 | UI の正本 | **kit の現行 UI**（仕様書・レポート・旧 web/ を揃え直す） |
 | migrations | **workspace-ui-kit** に新設 |
 
-### 3.1 UI の場面分担（2026-06-11 確定）
+### 3.1 UI の場面分担（2026-06-11 確定、2026-08-20 端末イメージ反映）
 
 | 利用場面 | 正とするクライアント |
 | --- | --- |
-| スマホからのタスク追加・軽い更新 | **workspace-ui-kit `/mobile`** |
+| スマホからの当日確認・タスク追加・軽い更新 | **workspace-ui-kit `/mobile`** |
 | PC でのプロジェクト割当・サブタスク編集・4 ペイン作業 | **workspace-ui-kit `/`** |
+| Apple Watch での予定確認 | **ICS を使い始めてから** iPhone 純正カレンダーの購読（本アプリの Watch 画面は持たない） |
+| Apple Watch からの追加 | **Siri ショートカット → inbox API**（予定または未割当タスク。詳細は [spec-apple-devices.md](./spec-apple-devices.md)） |
 
 同一 Supabase プロジェクト・同一認証（メール + パスワード）。セッションはアプリ内で共有（単一 Next.js アプリ）。
+
+Watch / iPhone / Windows / カレンダー連携の修正要件は [spec-apple-devices.md](./spec-apple-devices.md) が正本。本ファイルの 4 ペイン責務は上書きしない。カレンダーは見える化だけ行い、タスクの正本は自作アプリに置く。
 
 ## 4. ドメインと 4 ペイン責務
 
@@ -155,8 +159,10 @@
 
 | クライアント | 役割 |
 | --- | --- |
-| **workspace-ui-kit `/mobile`** | スマホ向け。**v1 入力: タイトル・期限・status（5 択）・project（任意）** |
+| **workspace-ui-kit `/mobile`** | iPhone 向け当日ハブ。タスク追加・予定閲覧・イベント追加に加え、**完了**とカレンダー購読設定を足す（詳細は [spec-apple-devices.md](./spec-apple-devices.md)） |
 | **workspace-ui-kit `/`** | PC 4 ペイン。プロジェクト割当・サブタスク・スケジュール |
+| **ICS フィード** | Google カレンダーと Apple カレンダー（→ Watch ミラー）向けの読み取り専用投影。正本ではない |
+| **inbox API** | Watch の発話。「スケジュールに入れて」ならイベント、「タスクに入れて」なら未割当タスク。無ければ開始時刻で推定 |
 | **自動報告ツール** | 日次レポート。**DB を読むだけ**。**ステータス別**にセクション分け（§5.9） |
 
 ### 5.3 正本データと実装フェーズ
@@ -289,6 +295,9 @@
 - 明示的な編集競合解決 UI。
 - `genre` / `sub_status` 既存値の自動移行。
 - レポートの「完了待ち」セクション。
+- **ネイティブ iOS / watchOS アプリ**（文字盤コンプリケーション、手首での完了）。Watch v1 の追加は Siri ショートカット。予定のカレンダー閲覧は ICS 利用開始後。詳細は [spec-apple-devices.md](./spec-apple-devices.md) §7。
+- Google / Apple カレンダーから本アプリへの書き戻し。
+- HealthKit / Reminders.app。音声入力に使うショートカットは v1 の範囲。
 
 ## 7. 要件確定事項
 
@@ -321,15 +330,17 @@
 
 1. ~~マイグレーション SQL 草案~~ — **作成済み**（`supabase/migrations/`）
 2. ~~仕様書・pane-mapping 更新~~ — 本書反映済み
-3. **Supabase Auth 導入** — kit にログイン・middleware
-4. **`/mobile` スマホ登録画面** — v1 入力項目
-5. **PC 4 ペイン Supabase 接続** — deleteProject SET NULL 修正含む
-6. **日次レポート改修** — ステータス別セクション（`done` 除外）
-7. **お試し `web/` 廃止明記 or 削除**
-8. **`20260611000003` 適用** — genre / sub_status DROP
+3. ~~Supabase Auth 導入~~ — 完了
+4. ~~`/mobile` スマホ登録画面~~ — v1 完了。予定閲覧・イベント追加まで拡張済み
+5. ~~PC 4 ペイン Supabase 接続~~ — 完了
+6. ~~日次レポート改修~~ — 完了
+7. ~~お試し `web/` 廃止~~ — 完了
+8. ~~`20260611000003` 適用~~ — 完了
+9. **端末連携** — [spec-apple-devices.md](./spec-apple-devices.md) 論点 1〜3 確定。実装は inbox（音声・未割当）と `/mobile` のプロジェクト割当が先。ICS はカレンダーを使い始めてから
 
 ## 9. 参考
 
+- `docs/spec-apple-devices.md` — Watch / iPhone / Windows / カレンダー連携の修正要件
 - `docs/handoff.md` — 引き継ぎメモ
 - `docs/pane-mapping-task-workspace.md` — ペイン写像表
 - `supabase/migrations/*.sql` — スキーマ草案
@@ -338,4 +349,4 @@
 
 ---
 
-*2026-05-14 グリル + 2026-06-11 作り直し 6 論点確定を反映。*
+*2026-05-14 グリル + 2026-06-11 作り直し 6 論点確定を反映。2026-08-19 に端末連携の修正要件を分離。*

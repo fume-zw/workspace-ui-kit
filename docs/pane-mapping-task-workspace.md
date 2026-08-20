@@ -2,8 +2,8 @@
 
 | 項目 | 内容 |
 | --- | --- |
-| ステータス | **作り直し版**（2026-06-11 確定反映） |
-| 根拠 | [spec-task-workspace.md](./spec-task-workspace.md) §4 |
+| ステータス | **作り直し版**（2026-06-11 確定 + 2026-08-20 端末フェーズ 1〜2） |
+| 根拠 | [spec-task-workspace.md](./spec-task-workspace.md) §4 / [spec-apple-devices.md](./spec-apple-devices.md) |
 
 ## ペイン責務の写像
 
@@ -37,14 +37,17 @@
 
 ## クライアント写像
 
-| ルート | 用途 | v1 入力 |
+| ルート / 出口 | 用途 | 現状 |
 | --- | --- | --- |
 | `/` | PC 4 ペイン | 全項目 + サブタスク + スケジュール |
-| `/mobile` | スマホ登録（**新設予定**） | タイトル・期限・ステータス・project（任意） |
+| `/mobile` | iPhone。予定の確認・編集と、未割当タスクのプロジェクト割当 | **フェーズ 1〜2 実装済み**（ICS 設定は未） |
+| `GET /api/calendar/[token].ics` | Google / Apple カレンダー購読（検討段階。使い始めてから） | **未実装** |
+| `POST /api/inbox` | Watch の音声。「スケジュールに入れて」/「タスクに入れて」で振り分け | **実装済み** |
 
 ## 次の着手順
 
-1. Supabase Auth 導入
-2. `/mobile` 新設
-3. PC 4 ペイン Supabase 接続
-4. 日次レポート改修（ステータス別セクション）
+1. ~~Supabase Auth 導入~~
+2. ~~`/mobile` 新設~~
+3. ~~PC 4 ペイン Supabase 接続~~
+4. ~~日次レポート改修（ステータス別セクション）~~
+5. **端末連携** — [spec-apple-devices.md](./spec-apple-devices.md) のフェーズ 1〜2（inbox + `/mobile` 割当）は実装済み。ICS はカレンダーを使い始めてから

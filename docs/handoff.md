@@ -104,7 +104,7 @@ text 列ではなく **マスタテーブル + `tasks.status_id`**。ユーザ�
 | ルート | 用途 | v1 入力 |
 |--------|------|---------|
 | `/` | PC 4ペイン | 全項目 + サブタスク |
-| `/mobile` | スマホ（**v1 実装済み**） | タイトル・期限・ステータス 5 択・project（任意） |
+| `/mobile` | スマホ（予定閲覧・未割当の割当・イベント編集まで実装済み） | タイトル・期限・ステータス 5 択・project（任意）。Watch 連携は [spec-apple-devices.md](./spec-apple-devices.md) |
 
 ### Auth（実装済み）
 
@@ -732,3 +732,14 @@ Grill（要件深掘り）で設計を確定 → 8 フェーズの実装プラ�
 | `20260611000007_tasks_recurring_link.sql` | tasks 定期タスク紐付け |
 | `20260611000008_event_labels.sql` | イベントラベル |
 | `20260611000009_schedule_label_seeds.sql` | ラベル初期 seed |
+
+---
+
+## 12. 端末連携（R-1〜R-10 確定・フェーズ 1〜2 実装）
+
+2026-08-20 確定。フェーズ 1〜2 を実装した。本番で使うには Vercel に `INBOX_TOKEN` / `INBOX_USER_ID` / `SUPABASE_SERVICE_ROLE_KEY` を置き、iPhone にショートカット「追加」を作る。
+
+- **正本:** [spec-apple-devices.md](./spec-apple-devices.md)
+- **音声:** Siri ショートカット「追加」。`POST /api/inbox`。「スケジュールに入れて」→ 予定、「タスクに入れて」→ 未割当タスク。言わなければ開始時刻で推定
+- **あとから直す:** iPhone `/mobile` または Windows でプロジェクト割当・時刻の微修正
+- **カレンダー:** まだ使わない。使うときは同じ ICS を購読（おすすめどおり）。鍵は inbox と別

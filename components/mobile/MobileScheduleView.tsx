@@ -27,6 +27,8 @@ type MobileScheduleViewProps = {
   shiftLabels: ShiftLabel[];
   eventLabels: EventLabel[];
   onOpenAddEvent: () => void;
+  onSelectTask: (taskId: string) => void;
+  onSelectEntry: (entryId: string) => void;
 };
 
 export function MobileScheduleView({
@@ -38,6 +40,8 @@ export function MobileScheduleView({
   shiftLabels,
   eventLabels,
   onOpenAddEvent,
+  onSelectTask,
+  onSelectEntry,
 }: MobileScheduleViewProps) {
   const scheduleTasks = useMemo(
     () => tasks.filter((task) => task.dueDate && task.statusCode !== "done"),
@@ -97,16 +101,15 @@ export function MobileScheduleView({
           projects={projects}
           shiftLabelsById={shiftLabelsById}
           eventLabelsById={eventLabelsById}
-          onSelectTask={() => {}}
-          onSelectEntry={() => {}}
-          readOnly
+          onSelectTask={onSelectTask}
+          onSelectEntry={onSelectEntry}
           layout="panel"
         />
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
         <CalendarDays className="mr-1 inline size-3.5 align-text-bottom" />
-        タスク・イベント・勤務を時刻順に表示しています。編集は PC から行えます。
+        タスクをタップして完了・割当、イベントをタップして時刻を直せます。勤務の編集は PC からです。
       </p>
 
       <Button type="button" size="lg" className="h-12 w-full shrink-0 text-base" onClick={onOpenAddEvent}>
