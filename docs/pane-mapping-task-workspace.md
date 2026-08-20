@@ -2,7 +2,7 @@
 
 | 項目 | 内容 |
 | --- | --- |
-| ステータス | **作り直し版**（2026-06-11 確定 + 2026-08-19 端末写像追記） |
+| ステータス | **作り直し版**（2026-06-11 確定 + 2026-08-20 端末フェーズ 1〜2） |
 | 根拠 | [spec-task-workspace.md](./spec-task-workspace.md) §4 / [spec-apple-devices.md](./spec-apple-devices.md) |
 
 ## ペイン責務の写像
@@ -40,9 +40,9 @@
 | ルート / 出口 | 用途 | 現状 |
 | --- | --- | --- |
 | `/` | PC 4 ペイン | 全項目 + サブタスク + スケジュール |
-| `/mobile` | iPhone。予定の確認・編集と、未割当タスクのプロジェクト割当 | **一部実装済み**。完了・割当・カレンダー設定は [spec-apple-devices.md](./spec-apple-devices.md) |
+| `/mobile` | iPhone。予定の確認・編集と、未割当タスクのプロジェクト割当 | **フェーズ 1〜2 実装済み**（ICS 設定は未） |
 | `GET /api/calendar/[token].ics` | Google / Apple カレンダー購読（検討段階。使い始めてから） | **未実装** |
-| `POST /api/inbox` | Watch の音声。「スケジュールに入れて」/「タスクに入れて」で振り分け | **未実装** |
+| `POST /api/inbox` | Watch の音声。「スケジュールに入れて」/「タスクに入れて」で振り分け | **実装済み** |
 
 ## 次の着手順
 
@@ -50,4 +50,4 @@
 2. ~~`/mobile` 新設~~
 3. ~~PC 4 ペイン Supabase 接続~~
 4. ~~日次レポート改修（ステータス別セクション）~~
-5. **端末連携** — [spec-apple-devices.md](./spec-apple-devices.md) 確定済み。実装は inbox → `/mobile` 割当が先、ICS は後
+5. **端末連携** — [spec-apple-devices.md](./spec-apple-devices.md) のフェーズ 1〜2（inbox + `/mobile` 割当）は実装済み。ICS はカレンダーを使い始めてから

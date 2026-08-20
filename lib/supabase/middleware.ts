@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/api/inbox"];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some(
@@ -10,6 +10,12 @@ function isPublicPath(pathname: string) {
 }
 
 export async function updateSession(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (pathname === "/api/inbox" || pathname.startsWith("/api/inbox/")) {
+    return NextResponse.next({ request });
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -47,8 +53,6 @@ export async function updateSession(request: NextRequest) {
     console.error("[middleware] supabase.auth.getUser() failed:", e);
     return supabaseResponse;
   }
-
-  const { pathname } = request.nextUrl;
 
   if (!user && !isPublicPath(pathname)) {
     const loginUrl = request.nextUrl.clone();

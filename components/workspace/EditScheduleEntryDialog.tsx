@@ -64,7 +64,7 @@ type EditScheduleEntryDialogProps = {
     patch: ScheduleEntryUpdatePatch,
   ) => void | Promise<void>;
   onDeleteEntry: (entryId: string) => void | Promise<void>;
-  onManageLabels: () => void;
+  onManageLabels?: () => void;
 };
 
 function draftFromEntry(entry: ScheduleEntry): EntryDraft {
@@ -213,16 +213,18 @@ export function EditScheduleEntryDialog({
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={onManageLabels}
-                      aria-label="イベントラベルを管理"
-                      className="shrink-0 text-muted-foreground hover:text-foreground"
-                    >
-                      <Settings2 />
-                    </Button>
+                    {onManageLabels ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={onManageLabels}
+                        aria-label="イベントラベルを管理"
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                      >
+                        <Settings2 />
+                      </Button>
+                    ) : null}
                   </div>
                 </InlineFieldRow>
               )}
