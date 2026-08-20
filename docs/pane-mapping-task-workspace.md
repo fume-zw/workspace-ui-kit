@@ -42,7 +42,7 @@
 | `/` | PC 4 ペイン | 全項目 + サブタスク + スケジュール |
 | `/mobile` | iPhone。予定の確認・編集と、未割当タスクのプロジェクト割当 | **一部実装済み**。完了・割当・カレンダー設定は [spec-apple-devices.md](./spec-apple-devices.md) |
 | `GET /api/calendar/[token].ics` | Google / Apple カレンダー購読（検討段階。使い始めてから） | **未実装** |
-| `POST /api/inbox` | Watch の音声。開始時刻あり→イベント、なし→未割当タスク | **未実装** |
+| `POST /api/inbox` | Watch の音声。「スケジュールに入れて」/「タスクに入れて」で振り分け | **未実装** |
 
 ## 次の着手順
 
