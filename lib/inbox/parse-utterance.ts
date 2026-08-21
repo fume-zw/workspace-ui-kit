@@ -3,6 +3,11 @@
  * 基準時刻は API 実行時点の Asia/Tokyo（テストでは now を注入する）。
  */
 
+import {
+  SLEEP_EVENT_TITLE,
+  type SleepAction,
+} from "@/lib/inbox/sleep";
+
 export type ParsedInboxTask = {
   kind: "task";
   title: string;
@@ -18,7 +23,15 @@ export type ParsedInboxEvent = {
   endTime: string | null;
 };
 
-export type ParsedInbox = ParsedInboxTask | ParsedInboxEvent;
+export type ParsedInboxSleep = {
+  kind: "sleep";
+  action: SleepAction;
+  title: typeof SLEEP_EVENT_TITLE;
+  dateKey: string;
+  startTime: string;
+};
+
+export type ParsedInbox = ParsedInboxTask | ParsedInboxEvent | ParsedInboxSleep;
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -51,6 +64,24 @@ const DEST_PHRASES: { phrase: string; dest: "event" | "task" }[] = [
   { phrase: "タスクを入れて", dest: "task" },
   { phrase: "タスクにして", dest: "task" },
 ];
+
+/** 長い語を先に見る。発話の残りが睡眠語だけなら睡眠記録にする。 */
+const BEDTIME_PHRASES = [
+  "おやすみなさい",
+  "おやすみします",
+  "おやすみ",
+  "寝ます",
+  "寝る",
+  "就寝",
+] as const;
+
+const WAKE_PHRASES = [
+  "おはようございます",
+  "おはよう",
+  "起きました",
+  "起きた",
+  "起床",
+] as const;
 
 type TimeModifier = "am" | "pm" | "morning" | "night" | null;
 
@@ -506,12 +537,87 @@ function pickEventDate(args: {
   return args.startExtraDays ? addDaysToKey(base, args.startExtraDays) : base;
 }
 
+function extractSleepPhrase(text: string): {
+  action: SleepAction;
+  rest: string;
+} | null {
+  let bestIndex = -1;
+  let bestLength = 0;
+  let bestAction: SleepAction | null = null;
+
+  const consider = (phrase: string, action: SleepAction) => {
+    const index = text.indexOf(phrase);
+    if (index < 0) return;
+    if (
+      bestIndex < 0 ||
+      index < bestIndex ||
+      (index === bestIndex && phrase.length > bestLength)
+    ) {
+      bestIndex = index;
+      bestLength = phrase.length;
+      bestAction = action;
+    }
+  };
+
+  for (const phrase of BEDTIME_PHRASES) consider(phrase, "bedtime");
+  for (const phrase of WAKE_PHRASES) consider(phrase, "wake");
+  if (bestAction === null || bestIndex < 0) return null;
+
+  return {
+    action: bestAction,
+    rest: text.slice(0, bestIndex) + text.slice(bestIndex + bestLength),
+  };
+}
+
+/** おはようの 1〜6 時を午前に固定する（会議推定の午後補正を外す）。 */
+function forceMorningClocks(text: string): string {
+  return text.replace(/(?<![午前午後朝夜])(\d{1,2}時)/g, "朝$1");
+}
+
+function hhmmFromNow(now: Date): string {
+  const wall = jstWallClock(now);
+  return `${pad2(wall.hour)}:${pad2(wall.minute)}`;
+}
+
+function tryParseSleep(afterDest: string, now: Date): ParsedInboxSleep | null {
+  const matched = extractSleepPhrase(afterDest);
+  if (!matched) return null;
+
+  const timedSource =
+    matched.action === "wake" ? forceMorningClocks(matched.rest) : matched.rest;
+  const times = extractTimes(timedSource);
+  const dates = extractDates(times.rest, now);
+  const leftover = cleanTitle(dates.rest, "event");
+  if (leftover !== "予定") return null;
+
+  const hasStart = Boolean(times.startTime) && !times.hadUntilOnly;
+  const startTime = hasStart ? times.startTime! : hhmmFromNow(now);
+  const dateKey = dates.dateKey
+    ? times.startExtraDays
+      ? addDaysToKey(dates.dateKey, times.startExtraDays)
+      : dates.dateKey
+    : times.startExtraDays
+      ? addDaysToKey(jstDateKey(now), times.startExtraDays)
+      : jstDateKey(now);
+
+  return {
+    kind: "sleep",
+    action: matched.action,
+    title: SLEEP_EVENT_TITLE,
+    dateKey,
+    startTime,
+  };
+}
+
 export function parseUtterance(
   raw: string,
   now: Date = new Date(),
 ): ParsedInbox {
   const normalized = expandColonTimes(normalizeUtterance(raw));
   const { dest, rest: afterDest } = extractDestination(normalized);
+  const sleep = tryParseSleep(afterDest, now);
+  if (sleep) return sleep;
+
   const times = extractTimes(afterDest);
   const dates = extractDates(times.rest, now);
 
@@ -562,6 +668,10 @@ export function formatInboxWhen(parsed: ParsedInbox): string {
   if (parsed.kind === "task") {
     return parsed.dueDate ? `期限${parsed.dueDate}` : "期限なし";
   }
+  if (parsed.kind === "sleep") {
+    const label = parsed.action === "bedtime" ? "就寝" : "起床";
+    return `${label} ${parsed.dateKey} ${parsed.startTime}`;
+  }
   if (parsed.allDay) return `${parsed.dateKey}終日`;
   return `${parsed.dateKey} ${parsed.startTime}–${parsed.endTime}`;
 }
@@ -590,6 +700,12 @@ function speakEventWhen(parsed: ParsedInboxEvent): string {
 }
 
 export function speakInboxSuccess(parsed: ParsedInbox): string {
+  if (parsed.kind === "sleep") {
+    const clock = speakClockFromHhmm(parsed.startTime);
+    return parsed.action === "bedtime"
+      ? `${clock}に就寝を記録しました`
+      : `${clock}に起床を記録しました`;
+  }
   const quoted = `「${parsed.title}」`;
   if (parsed.kind === "task") {
     if (!parsed.dueDate) return `${quoted}をタスクに入れました`;

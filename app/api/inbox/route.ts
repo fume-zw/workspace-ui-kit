@@ -1,4 +1,8 @@
-import { persistInboxEvent, persistInboxTask } from "@/lib/inbox/persist";
+import {
+  persistInboxEvent,
+  persistInboxSleep,
+  persistInboxTask,
+} from "@/lib/inbox/persist";
 import { requireInboxAuth } from "@/lib/inbox/auth";
 import {
   formatInboxWhen,
@@ -56,13 +60,17 @@ function allowRate(userId: string, now: number): boolean {
   return true;
 }
 
-function successPayload(parsed: ParsedInbox, id: string): InboxSuccess {
+function successPayload(
+  parsed: ParsedInbox,
+  id: string,
+  extra?: { speak?: string; when?: string },
+): InboxSuccess {
   return {
     ok: true,
-    kind: parsed.kind,
+    kind: parsed.kind === "task" ? "task" : "event",
     title: parsed.title,
-    when: formatInboxWhen(parsed),
-    speak: speakInboxSuccess(parsed),
+    when: extra?.when ?? formatInboxWhen(parsed),
+    speak: extra?.speak ?? speakInboxSuccess(parsed),
     id,
   };
 }
@@ -105,11 +113,16 @@ export async function POST(request: Request) {
     const saved =
       parsed.kind === "task"
         ? await persistInboxTask(supabase, userId, parsed)
-        : await persistInboxEvent(supabase, userId, parsed);
+        : parsed.kind === "sleep"
+          ? await persistInboxSleep(supabase, userId, parsed)
+          : await persistInboxEvent(supabase, userId, parsed);
     if ("error" in saved) {
       return json({ ok: false, speak: saved.speak }, saved.status);
     }
-    const body = successPayload(parsed, saved.id);
+    const body = successPayload(parsed, saved.id, {
+      speak: saved.speak,
+      when: saved.when,
+    });
     dedupe.set(dedupeKey, { at: now, body });
     return json(body, 200);
   } catch (error) {

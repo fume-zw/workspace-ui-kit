@@ -321,4 +321,64 @@ describe("inbox speak helpers", () => {
       "8月21日に「会議」を予定に入れました",
     );
   });
+
+  it("records おやすみ as bedtime at the spoken now", () => {
+    const bedtimeNow = new Date("2026-08-20T14:15:00.000Z"); // 23:15 JST
+    const parsed = parseUtterance("おやすみ", bedtimeNow);
+    expect(parsed).toEqual({
+      kind: "sleep",
+      action: "bedtime",
+      title: "睡眠",
+      dateKey: "2026-08-20",
+      startTime: "23:15",
+    });
+    expect(speakInboxSuccess(parsed)).toBe("23時15分に就寝を記録しました");
+    expect(formatInboxWhen(parsed)).toBe("就寝 2026-08-20 23:15");
+  });
+
+  it("records おはよう as wake at the spoken now", () => {
+    const wakeNow = new Date("2026-08-20T22:00:00.000Z"); // 07:00 JST
+    const parsed = parseUtterance("おはよう", wakeNow);
+    expect(parsed).toEqual({
+      kind: "sleep",
+      action: "wake",
+      title: "睡眠",
+      dateKey: "2026-08-21",
+      startTime: "07:00",
+    });
+    expect(speakInboxSuccess(parsed)).toBe("7時に起床を記録しました");
+  });
+
+  it("keeps おやすみ as sleep even with スケジュールに入れて", () => {
+    const bedtimeNow = new Date("2026-08-20T14:15:00.000Z");
+    const parsed = parseUtterance(
+      "おやすみをスケジュールに入れて",
+      bedtimeNow,
+    );
+    expect(parsed.kind).toBe("sleep");
+    if (parsed.kind === "sleep") {
+      expect(parsed.action).toBe("bedtime");
+      expect(parsed.startTime).toBe("23:15");
+    }
+  });
+
+  it("treats 朝6時におはよう as 06:00 not afternoon", () => {
+    const parsed = parseUtterance("6時におはよう", NOW);
+    expect(parsed).toEqual({
+      kind: "sleep",
+      action: "wake",
+      title: "睡眠",
+      dateKey: "2026-08-20",
+      startTime: "06:00",
+    });
+  });
+
+  it("does not treat 寝る前に薬 as sleep", () => {
+    const parsed = parseUtterance("寝る前に薬", NOW);
+    expect(parsed).toEqual({
+      kind: "task",
+      title: "寝る前に薬",
+      dueDate: null,
+    });
+  });
 });
