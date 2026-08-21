@@ -37,10 +37,14 @@ const DEST_PHRASES: { phrase: string; dest: "event" | "task" }[] = [
   { phrase: "スケジュールを入れといて", dest: "event" },
   { phrase: "スケジュールに入れて", dest: "event" },
   { phrase: "スケジュールを入れて", dest: "event" },
+  { phrase: "スケジュールしといて", dest: "event" },
+  { phrase: "スケジュールして", dest: "event" },
   { phrase: "予定に入れといて", dest: "event" },
   { phrase: "予定を入れといて", dest: "event" },
   { phrase: "予定に入れて", dest: "event" },
   { phrase: "予定を入れて", dest: "event" },
+  { phrase: "予定しといて", dest: "event" },
+  { phrase: "予定して", dest: "event" },
   { phrase: "タスクに入れといて", dest: "task" },
   { phrase: "タスクを入れといて", dest: "task" },
   { phrase: "タスクに入れて", dest: "task" },
@@ -162,7 +166,10 @@ function extractDates(
   };
 
   if (rest.includes("明後日") || rest.includes("あさって")) {
-    take(rest.includes("明後日") ? "明後日" : "あさって", addDaysToKey(today, 2));
+    take(
+      rest.includes("明後日") ? "明後日" : "あさって",
+      addDaysToKey(today, 2),
+    );
   } else if (rest.includes("明日") || rest.includes("あした")) {
     take(rest.includes("明日") ? "明日" : "あした", addDaysToKey(today, 1));
   } else if (rest.includes("今日") || rest.includes("きょう")) {
@@ -243,7 +250,10 @@ function resolveHour(raw: number, modifier: TimeModifier): number {
   return raw;
 }
 
-function toHhmm(hour: number, minute: number): { hhmm: string; extraDays: number } {
+function toHhmm(
+  hour: number,
+  minute: number,
+): { hhmm: string; extraDays: number } {
   let extraDays = 0;
   let h = hour;
   if (h === 24) {
@@ -287,10 +297,13 @@ function addHoursToHhmm(
   };
 }
 
-const CLOCK =
-  "(\\d{1,2})時(?:(\\d{1,2})分|半)?";
+const CLOCK = "(\\d{1,2})時(?:(\\d{1,2})分|半)?";
 
-function stripModifiersAround(text: string, start: number, end: number): string {
+function stripModifiersAround(
+  text: string,
+  start: number,
+  end: number,
+): string {
   let from = start;
   const before = text.slice(Math.max(0, start - 2), start);
   if (/(午前|午後)$/.test(before)) from -= 2;
@@ -313,26 +326,48 @@ function extractTimes(text: string): {
   let endExtraDays = 0;
   let hadUntilOnly = false;
 
-  const spanHour = rest.match(
-    new RegExp(`${CLOCK}から(\\d+(?:\\.\\d+)?)時間`),
-  );
+  const spanHour = rest.match(new RegExp(`${CLOCK}から(\\d+(?:\\.\\d+)?)時間`));
   if (spanHour && spanHour.index !== undefined) {
     const modifier = prefixModifier(rest, spanHour.index);
-    const start = parseClock(spanHour[1]!, spanHour[2], spanHour[0].includes("半"), modifier);
+    const start = parseClock(
+      spanHour[1]!,
+      spanHour[2],
+      spanHour[0].includes("半"),
+      modifier,
+    );
     const added = addHoursToHhmm(start.hhmm, Number(spanHour[3]));
     startTime = start.hhmm;
     startExtraDays = start.extraDays;
     endTime = added.hhmm;
     endExtraDays = start.extraDays + added.extraDays;
-    rest = stripModifiersAround(rest, spanHour.index, spanHour.index + spanHour[0].length);
-    return { startTime, endTime, startExtraDays, endExtraDays, rest, hadUntilOnly };
+    rest = stripModifiersAround(
+      rest,
+      spanHour.index,
+      spanHour.index + spanHour[0].length,
+    );
+    return {
+      startTime,
+      endTime,
+      startExtraDays,
+      endExtraDays,
+      rest,
+      hadUntilOnly,
+    };
   }
 
   const span = rest.match(new RegExp(`${CLOCK}から${CLOCK}まで?`));
   if (span && span.index !== undefined) {
     const modifier = prefixModifier(rest, span.index);
-    const start = parseClock(span[1]!, span[2], /時半から/.test(span[0]), modifier);
-    const endMod = prefixModifier(rest, span.index + span[0].indexOf("から") + 2);
+    const start = parseClock(
+      span[1]!,
+      span[2],
+      /時半から/.test(span[0]),
+      modifier,
+    );
+    const endMod = prefixModifier(
+      rest,
+      span.index + span[0].indexOf("から") + 2,
+    );
     const endHalf = /から.*時半/.test(span[0]);
     const end = parseClock(span[3]!, span[4], endHalf, endMod ?? modifier);
     startTime = start.hhmm;
@@ -340,13 +375,25 @@ function extractTimes(text: string): {
     endTime = end.hhmm;
     endExtraDays = end.extraDays;
     rest = stripModifiersAround(rest, span.index, span.index + span[0].length);
-    return { startTime, endTime, startExtraDays, endExtraDays, rest, hadUntilOnly };
+    return {
+      startTime,
+      endTime,
+      startExtraDays,
+      endExtraDays,
+      rest,
+      hadUntilOnly,
+    };
   }
 
   const from = rest.match(new RegExp(`${CLOCK}から`));
   if (from && from.index !== undefined) {
     const modifier = prefixModifier(rest, from.index);
-    const start = parseClock(from[1]!, from[2], from[0].includes("半"), modifier);
+    const start = parseClock(
+      from[1]!,
+      from[2],
+      from[0].includes("半"),
+      modifier,
+    );
     startTime = start.hhmm;
     startExtraDays = start.extraDays;
     rest = stripModifiersAround(rest, from.index, from.index + from[0].length);
@@ -366,11 +413,20 @@ function extractTimes(text: string): {
     hadUntilOnly = startTime === null;
     if (!hadUntilOnly) {
       const modifier = prefixModifier(rest, until.index);
-      const end = parseClock(until[1]!, until[2], until[0].includes("半"), modifier);
+      const end = parseClock(
+        until[1]!,
+        until[2],
+        until[0].includes("半"),
+        modifier,
+      );
       endTime = end.hhmm;
       endExtraDays = end.extraDays;
     }
-    rest = stripModifiersAround(rest, until.index, until.index + until[0].length);
+    rest = stripModifiersAround(
+      rest,
+      until.index,
+      until.index + until[0].length,
+    );
   }
 
   if (!startTime && !hadUntilOnly) {
@@ -382,10 +438,19 @@ function extractTimes(text: string): {
       const lone = rest.match(new RegExp(CLOCK));
       if (lone && lone.index !== undefined) {
         const modifier = prefixModifier(rest, lone.index);
-        const start = parseClock(lone[1]!, lone[2], lone[0].includes("半"), modifier);
+        const start = parseClock(
+          lone[1]!,
+          lone[2],
+          lone[0].includes("半"),
+          modifier,
+        );
         startTime = start.hhmm;
         startExtraDays = start.extraDays;
-        rest = stripModifiersAround(rest, lone.index, lone.index + lone[0].length);
+        rest = stripModifiersAround(
+          rest,
+          lone.index,
+          lone.index + lone[0].length,
+        );
       }
     }
   }
@@ -432,22 +497,26 @@ function pickEventDate(args: {
   }
   if (!args.startTime) return today;
   const wall = jstWallClock(args.now);
-  const [h, m] = args.startTime.split(":").map((part) => Number.parseInt(part, 10));
+  const [h, m] = args.startTime
+    .split(":")
+    .map((part) => Number.parseInt(part, 10));
   const startMinutes = h * 60 + m;
   const nowMinutes = wall.hour * 60 + wall.minute;
   const base = startMinutes > nowMinutes ? today : addDaysToKey(today, 1);
   return args.startExtraDays ? addDaysToKey(base, args.startExtraDays) : base;
 }
 
-export function parseUtterance(raw: string, now: Date = new Date()): ParsedInbox {
+export function parseUtterance(
+  raw: string,
+  now: Date = new Date(),
+): ParsedInbox {
   const normalized = expandColonTimes(normalizeUtterance(raw));
   const { dest, rest: afterDest } = extractDestination(normalized);
   const times = extractTimes(afterDest);
   const dates = extractDates(times.rest, now);
 
   const hasStart = Boolean(times.startTime) && !times.hadUntilOnly;
-  const kind: "event" | "task" =
-    dest ?? (hasStart ? "event" : "task");
+  const kind: "event" | "task" = dest ?? (hasStart ? "event" : "task");
 
   const title = cleanTitle(dates.rest, kind);
 
@@ -497,9 +566,34 @@ export function formatInboxWhen(parsed: ParsedInbox): string {
   return `${parsed.dateKey} ${parsed.startTime}–${parsed.endTime}`;
 }
 
-export function speakInboxSuccess(parsed: ParsedInbox): string {
-  if (parsed.kind === "task") {
-    return `「${parsed.title}」をタスクに入れました`;
+function speakClockFromHhmm(hhmm: string): string {
+  const [hour, minute] = hhmm
+    .split(":")
+    .map((part) => Number.parseInt(part, 10));
+  if (minute === 0) return `${hour}時`;
+  return `${hour}時${minute}分`;
+}
+
+function speakDateFromKey(dateKey: string): string {
+  const [, month, day] = dateKey.split("-");
+  return `${Number(month)}月${Number(day)}日`;
+}
+
+function speakEventWhen(parsed: ParsedInboxEvent): string {
+  const day = speakDateFromKey(parsed.dateKey);
+  if (parsed.allDay || !parsed.startTime) return day;
+  const start = speakClockFromHhmm(parsed.startTime);
+  if (!parsed.endTime || parsed.endTime === defaultEndTime(parsed.startTime)) {
+    return `${day}${start}`;
   }
-  return `「${parsed.title}」を予定に入れました`;
+  return `${day}${start}から${speakClockFromHhmm(parsed.endTime)}`;
+}
+
+export function speakInboxSuccess(parsed: ParsedInbox): string {
+  const quoted = `「${parsed.title}」`;
+  if (parsed.kind === "task") {
+    if (!parsed.dueDate) return `${quoted}をタスクに入れました`;
+    return `${quoted}を${speakDateFromKey(parsed.dueDate)}期限のタスクに入れました`;
+  }
+  return `${speakEventWhen(parsed)}に${quoted}を予定に入れました`;
 }

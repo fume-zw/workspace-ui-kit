@@ -61,6 +61,24 @@ describe("parseUtterance", () => {
     });
   });
 
+  it("creates a timed event from スケジュールして and keeps the title clean", () => {
+    const parsed = parseUtterance(
+      "14時にクリーンセンターをスケジュールして",
+      NOW,
+    );
+    expect(parsed).toEqual({
+      kind: "event",
+      title: "クリーンセンター",
+      dateKey: "2026-08-20",
+      allDay: false,
+      startTime: "14:00",
+      endTime: "15:00",
+    });
+    expect(speakInboxSuccess(parsed)).toBe(
+      "8月20日14時に「クリーンセンター」を予定に入れました",
+    );
+  });
+
   it("creates a timed event from スケジュールに入れて", () => {
     const parsed = parseUtterance(
       "8月25日の14時から会議をスケジュールに入れて",
@@ -268,5 +286,39 @@ describe("inbox speak helpers", () => {
     const parsed = parseUtterance("週報をタスクに入れて", NOW);
     expect(speakInboxSuccess(parsed)).toBe("「週報」をタスクに入れました");
     expect(formatInboxWhen(parsed)).toBe("期限なし");
+  });
+
+  it("repeats the due date for a dated task", () => {
+    const parsed = parseUtterance("明日まで週報、タスクに入れて", NOW);
+    expect(speakInboxSuccess(parsed)).toBe(
+      "「週報」を8月21日期限のタスクに入れました",
+    );
+  });
+
+  it("repeats date and start time for a timed event", () => {
+    const parsed = parseUtterance(
+      "8月25日の14時から会議をスケジュールに入れて",
+      NOW,
+    );
+    expect(speakInboxSuccess(parsed)).toBe(
+      "8月25日14時に「会議」を予定に入れました",
+    );
+  });
+
+  it("repeats an explicit end time when it is not the default hour", () => {
+    const parsed = parseUtterance(
+      "明日10時から12時まで週報会議をスケジュールに入れて",
+      NOW,
+    );
+    expect(speakInboxSuccess(parsed)).toBe(
+      "8月21日10時から12時に「週報会議」を予定に入れました",
+    );
+  });
+
+  it("repeats the date for an all-day event", () => {
+    const parsed = parseUtterance("明日の会議を予定に入れて", NOW);
+    expect(speakInboxSuccess(parsed)).toBe(
+      "8月21日に「会議」を予定に入れました",
+    );
   });
 });
