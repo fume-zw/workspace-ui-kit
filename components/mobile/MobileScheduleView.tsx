@@ -11,6 +11,7 @@ import {
 import { buildDayAgenda } from "@/lib/computed/schedule-agenda";
 import {
   type EventLabel,
+  type LifeLabel,
   type Project,
   type ScheduleEntry,
   type ShiftLabel,
@@ -26,7 +27,9 @@ type MobileScheduleViewProps = {
   scheduleEntries: ScheduleEntry[];
   shiftLabels: ShiftLabel[];
   eventLabels: EventLabel[];
+  lifeLabels: LifeLabel[];
   onOpenAddEvent: () => void;
+  onOpenAddLife: () => void;
   onSelectTask: (taskId: string) => void;
   onSelectEntry: (entryId: string) => void;
 };
@@ -39,7 +42,9 @@ export function MobileScheduleView({
   scheduleEntries,
   shiftLabels,
   eventLabels,
+  lifeLabels,
   onOpenAddEvent,
+  onOpenAddLife,
   onSelectTask,
   onSelectEntry,
 }: MobileScheduleViewProps) {
@@ -74,6 +79,11 @@ export function MobileScheduleView({
     [eventLabels],
   );
 
+  const lifeLabelsById = useMemo(
+    () => new Map(lifeLabels.map((label) => [label.id, label])),
+    [lifeLabels],
+  );
+
   const agendaItems = useMemo(
     () =>
       buildDayAgenda(
@@ -104,6 +114,7 @@ export function MobileScheduleView({
           projects={projects}
           shiftLabelsById={shiftLabelsById}
           eventLabelsById={eventLabelsById}
+          lifeLabelsById={lifeLabelsById}
           onSelectTask={onSelectTask}
           onSelectEntry={onSelectEntry}
           layout="stack"
@@ -112,19 +123,30 @@ export function MobileScheduleView({
 
       <p className="text-center text-xs text-muted-foreground">
         <CalendarDays className="mr-1 inline size-3.5 align-text-bottom" />
-        タスクをタップして完了・割当、イベントをタップして時刻を直せます。勤務の編集は
-        PC からです。
+        予定をタップして時刻を直せます。勤務・定期の一括追加は PC からです。
       </p>
 
-      <Button
-        type="button"
-        size="lg"
-        className="h-12 w-full shrink-0 text-base"
-        onClick={onOpenAddEvent}
-      >
-        <Plus className="size-4" />
-        イベントを追加
-      </Button>
+      <div className="flex flex-col gap-2">
+        <Button
+          type="button"
+          size="lg"
+          className="h-12 w-full shrink-0 text-base"
+          onClick={onOpenAddEvent}
+        >
+          <Plus className="size-4" />
+          イベントを追加
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          className="h-12 w-full shrink-0 text-base"
+          onClick={onOpenAddLife}
+        >
+          <Plus className="size-4" />
+          生活を追加
+        </Button>
+      </div>
     </div>
   );
 }

@@ -87,6 +87,10 @@
   --color-task-due-soon: var(--task-due-soon);
   --color-calendar-sunday: var(--calendar-sunday);
   --color-calendar-saturday: var(--calendar-saturday);
+  --color-schedule-orange: var(--schedule-orange);
+  --color-schedule-teal: var(--schedule-teal);
+  --color-schedule-violet: var(--schedule-violet);
+  --color-schedule-indigo: var(--schedule-indigo);
 }
 
 :root {
@@ -124,6 +128,10 @@
   /* ミニカレンダー土日（識別しやすいようやや彩度を高めた赤・青） */
   --calendar-sunday: oklch(0.43 0.13 22);
   --calendar-saturday: oklch(0.43 0.13 252);
+  --schedule-orange: oklch(0.66 0.13 55);
+  --schedule-teal: oklch(0.58 0.08 192);
+  --schedule-violet: oklch(0.55 0.12 312);
+  --schedule-indigo: oklch(0.50 0.10 278);
   --radius: 0.625rem;
   --sidebar: oklch(0.952 0.02 24);
   --sidebar-foreground: oklch(0.28 0.02 35);
@@ -208,6 +216,10 @@
   --task-due-soon: oklch(0.8 0.09 92);
   --calendar-sunday: oklch(0.78 0.13 22);
   --calendar-saturday: oklch(0.78 0.13 252);
+  --schedule-orange: oklch(0.74 0.12 55);
+  --schedule-teal: oklch(0.70 0.08 192);
+  --schedule-violet: oklch(0.70 0.11 312);
+  --schedule-indigo: oklch(0.68 0.10 278);
   --radius: 0.625rem;
   --font-sans:
     var(--font-inter), "Hiragino Sans", "BIZ UDPGothic", "Yu Gothic UI",

@@ -47,6 +47,7 @@ export async function GET(
       entries: scheduleResult.data.scheduleEntries,
       shiftLabels: scheduleResult.data.shiftLabels,
       eventLabels: scheduleResult.data.eventLabels,
+      lifeLabels: scheduleResult.data.lifeLabels,
     });
     return icsResponse(ics);
   } catch (error) {

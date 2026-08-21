@@ -3,6 +3,11 @@
  * 基準時刻は API 実行時点の Asia/Tokyo（テストでは now を注入する）。
  */
 
+import {
+  SLEEP_EVENT_TITLE,
+  type SleepAction,
+} from "@/lib/inbox/sleep";
+
 export type ParsedInboxTask = {
   kind: "task";
   title: string;
@@ -18,7 +23,27 @@ export type ParsedInboxEvent = {
   endTime: string | null;
 };
 
-export type ParsedInbox = ParsedInboxTask | ParsedInboxEvent;
+export type ParsedInboxSleep = {
+  kind: "sleep";
+  action: SleepAction;
+  title: typeof SLEEP_EVENT_TITLE;
+  dateKey: string;
+  startTime: string;
+};
+
+export type ParsedInboxLife = {
+  kind: "life";
+  title: string;
+  dateKey: string;
+  startTime: string;
+  endTime: string;
+};
+
+export type ParsedInbox =
+  | ParsedInboxTask
+  | ParsedInboxEvent
+  | ParsedInboxSleep
+  | ParsedInboxLife;
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -51,6 +76,56 @@ const DEST_PHRASES: { phrase: string; dest: "event" | "task" }[] = [
   { phrase: "タスクを入れて", dest: "task" },
   { phrase: "タスクにして", dest: "task" },
 ];
+
+/** 長い語を先に見る。発話の残りが睡眠語だけなら睡眠記録にする。 */
+const BEDTIME_PHRASES = [
+  "おやすみなさい",
+  "おやすみします",
+  "おやすみ",
+  "寝ます",
+  "寝る",
+  "就寝",
+] as const;
+
+const WAKE_PHRASES = [
+  "おはようございます",
+  "おはよう",
+  "起きました",
+  "起きた",
+  "起床",
+] as const;
+
+/** 長い語を先に見る。発話の残りが生活語だけなら生活記録にする。 */
+const LIFE_PHRASES: { phrase: string; title: string }[] = [
+  { phrase: "お風呂に入った", title: "お風呂" },
+  { phrase: "お風呂入った", title: "お風呂" },
+  { phrase: "お風呂します", title: "お風呂" },
+  { phrase: "お風呂した", title: "お風呂" },
+  { phrase: "おふろ", title: "お風呂" },
+  { phrase: "お風呂", title: "お風呂" },
+  { phrase: "入浴", title: "お風呂" },
+  { phrase: "風呂", title: "お風呂" },
+  { phrase: "朝ごはん", title: "食事" },
+  { phrase: "昼ごはん", title: "食事" },
+  { phrase: "夜ごはん", title: "食事" },
+  { phrase: "朝御飯", title: "食事" },
+  { phrase: "昼御飯", title: "食事" },
+  { phrase: "夜御飯", title: "食事" },
+  { phrase: "ごはん", title: "食事" },
+  { phrase: "ご飯", title: "食事" },
+  { phrase: "朝食", title: "食事" },
+  { phrase: "昼食", title: "食事" },
+  { phrase: "夕食", title: "食事" },
+  { phrase: "夕飯", title: "食事" },
+  { phrase: "ランチ", title: "食事" },
+  { phrase: "ディナー", title: "食事" },
+  { phrase: "食事した", title: "食事" },
+  { phrase: "食事します", title: "食事" },
+  { phrase: "食事", title: "食事" },
+];
+
+/** 生活の既定の長さ。時刻を言わなければいまからこの分数。 */
+export const LIFE_DEFAULT_MINUTES = 30;
 
 type TimeModifier = "am" | "pm" | "morning" | "night" | null;
 
@@ -506,12 +581,164 @@ function pickEventDate(args: {
   return args.startExtraDays ? addDaysToKey(base, args.startExtraDays) : base;
 }
 
+function extractSleepPhrase(text: string): {
+  action: SleepAction;
+  rest: string;
+} | null {
+  let bestIndex = -1;
+  let bestLength = 0;
+  let bestAction: SleepAction | null = null;
+
+  const consider = (phrase: string, action: SleepAction) => {
+    const index = text.indexOf(phrase);
+    if (index < 0) return;
+    if (
+      bestIndex < 0 ||
+      index < bestIndex ||
+      (index === bestIndex && phrase.length > bestLength)
+    ) {
+      bestIndex = index;
+      bestLength = phrase.length;
+      bestAction = action;
+    }
+  };
+
+  for (const phrase of BEDTIME_PHRASES) consider(phrase, "bedtime");
+  for (const phrase of WAKE_PHRASES) consider(phrase, "wake");
+  if (bestAction === null || bestIndex < 0) return null;
+
+  return {
+    action: bestAction,
+    rest: text.slice(0, bestIndex) + text.slice(bestIndex + bestLength),
+  };
+}
+
+/** おはようの 1〜6 時を午前に固定する（会議推定の午後補正を外す）。 */
+function forceMorningClocks(text: string): string {
+  return text.replace(/(?<![午前午後朝夜])(\d{1,2}時)/g, "朝$1");
+}
+
+function hhmmFromNow(now: Date): string {
+  const wall = jstWallClock(now);
+  return `${pad2(wall.hour)}:${pad2(wall.minute)}`;
+}
+
+function tryParseSleep(afterDest: string, now: Date): ParsedInboxSleep | null {
+  const matched = extractSleepPhrase(afterDest);
+  if (!matched) return null;
+
+  const timedSource =
+    matched.action === "wake" ? forceMorningClocks(matched.rest) : matched.rest;
+  const times = extractTimes(timedSource);
+  const dates = extractDates(times.rest, now);
+  const leftover = cleanTitle(dates.rest, "event");
+  if (leftover !== "予定") return null;
+
+  const hasStart = Boolean(times.startTime) && !times.hadUntilOnly;
+  const startTime = hasStart ? times.startTime! : hhmmFromNow(now);
+  const dateKey = dates.dateKey
+    ? times.startExtraDays
+      ? addDaysToKey(dates.dateKey, times.startExtraDays)
+      : dates.dateKey
+    : times.startExtraDays
+      ? addDaysToKey(jstDateKey(now), times.startExtraDays)
+      : jstDateKey(now);
+
+  return {
+    kind: "sleep",
+    action: matched.action,
+    title: SLEEP_EVENT_TITLE,
+    dateKey,
+    startTime,
+  };
+}
+
+function extractLifePhrase(text: string): {
+  title: string;
+  rest: string;
+} | null {
+  let bestIndex = -1;
+  let bestLength = 0;
+  let bestTitle: string | null = null;
+
+  for (const item of LIFE_PHRASES) {
+    const index = text.indexOf(item.phrase);
+    if (index < 0) continue;
+    if (
+      bestIndex < 0 ||
+      index < bestIndex ||
+      (index === bestIndex && item.phrase.length > bestLength)
+    ) {
+      bestIndex = index;
+      bestLength = item.phrase.length;
+      bestTitle = item.title;
+    }
+  }
+
+  if (bestTitle === null || bestIndex < 0) return null;
+  return {
+    title: bestTitle,
+    rest: text.slice(0, bestIndex) + text.slice(bestIndex + bestLength),
+  };
+}
+
+function lifeLeftoverOk(rest: string): boolean {
+  const cleaned = cleanTitle(rest, "event")
+    .replace(/(に)?入りました$/g, "")
+    .replace(/(に)?入った$/g, "")
+    .replace(/しました$/g, "")
+    .replace(/します$/g, "")
+    .replace(/した$/g, "")
+    .replace(/です$/g, "")
+    .replace(/だよ$/g, "")
+    .replace(/だ$/g, "")
+    .trim();
+  return cleaned === "" || cleaned === "予定";
+}
+
+function tryParseLife(afterDest: string, now: Date): ParsedInboxLife | null {
+  const matched = extractLifePhrase(afterDest);
+  if (!matched) return null;
+
+  const times = extractTimes(matched.rest);
+  const dates = extractDates(times.rest, now);
+  if (!lifeLeftoverOk(dates.rest)) return null;
+
+  const hasStart = Boolean(times.startTime) && !times.hadUntilOnly;
+  const startTime = hasStart ? times.startTime! : hhmmFromNow(now);
+  const endFromSpan = times.endTime;
+  const added = addHoursToHhmm(startTime, LIFE_DEFAULT_MINUTES / 60);
+  const endTime = endFromSpan ?? added.hhmm;
+  const dateKey = dates.dateKey
+    ? times.startExtraDays
+      ? addDaysToKey(dates.dateKey, times.startExtraDays)
+      : dates.dateKey
+    : times.startExtraDays
+      ? addDaysToKey(jstDateKey(now), times.startExtraDays)
+      : jstDateKey(now);
+
+  return {
+    kind: "life",
+    title: matched.title,
+    dateKey,
+    startTime,
+    endTime,
+  };
+}
+
 export function parseUtterance(
   raw: string,
   now: Date = new Date(),
 ): ParsedInbox {
   const normalized = expandColonTimes(normalizeUtterance(raw));
   const { dest, rest: afterDest } = extractDestination(normalized);
+  const sleep = tryParseSleep(afterDest, now);
+  if (sleep) return sleep;
+  if (dest !== "task") {
+    const life = tryParseLife(afterDest, now);
+    if (life) return life;
+  }
+
   const times = extractTimes(afterDest);
   const dates = extractDates(times.rest, now);
 
@@ -562,6 +789,13 @@ export function formatInboxWhen(parsed: ParsedInbox): string {
   if (parsed.kind === "task") {
     return parsed.dueDate ? `期限${parsed.dueDate}` : "期限なし";
   }
+  if (parsed.kind === "sleep") {
+    const label = parsed.action === "bedtime" ? "就寝" : "起床";
+    return `${label} ${parsed.dateKey} ${parsed.startTime}`;
+  }
+  if (parsed.kind === "life") {
+    return `${parsed.dateKey} ${parsed.startTime}–${parsed.endTime}`;
+  }
   if (parsed.allDay) return `${parsed.dateKey}終日`;
   return `${parsed.dateKey} ${parsed.startTime}–${parsed.endTime}`;
 }
@@ -590,10 +824,26 @@ function speakEventWhen(parsed: ParsedInboxEvent): string {
 }
 
 export function speakInboxSuccess(parsed: ParsedInbox): string {
+  if (parsed.kind === "sleep") {
+    const clock = speakClockFromHhmm(parsed.startTime);
+    return parsed.action === "bedtime"
+      ? `${clock}に就寝を記録しました`
+      : `${clock}に起床を記録しました`;
+  }
   const quoted = `「${parsed.title}」`;
   if (parsed.kind === "task") {
     if (!parsed.dueDate) return `${quoted}をタスクに入れました`;
     return `${quoted}を${speakDateFromKey(parsed.dueDate)}期限のタスクに入れました`;
+  }
+  if (parsed.kind === "life") {
+    return `${speakEventWhen({
+      kind: "event",
+      title: parsed.title,
+      dateKey: parsed.dateKey,
+      allDay: false,
+      startTime: parsed.startTime,
+      endTime: parsed.endTime,
+    })}に${quoted}を生活に入れました`;
   }
   return `${speakEventWhen(parsed)}に${quoted}を予定に入れました`;
 }

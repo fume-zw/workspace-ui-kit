@@ -23,7 +23,7 @@ export type AgendaTaskItem = {
 };
 
 export type AgendaEntryItem = {
-  kind: "event" | "shift";
+  kind: "event" | "shift" | "life";
   sortMinutes: number;
   timeLabel: string;
   entry: ScheduleEntry;

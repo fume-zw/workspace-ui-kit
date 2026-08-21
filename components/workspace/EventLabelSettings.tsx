@@ -38,15 +38,45 @@ export type EventLabelFormValue = {
   colorToken: string;
 };
 
+export type EventLabelSettingsCopy = {
+  title: string;
+  description: string;
+  empty: string;
+  placeholder: string;
+  archiveTitle: string;
+  usageNoun: string;
+};
+
+const DEFAULT_COPY: EventLabelSettingsCopy = {
+  title: "イベントラベルの管理",
+  description:
+    "会議・私用・通院など、イベントの種類を登録します。名前と色は貼り済みの予定にも反映されます。",
+  empty: "イベントラベルがまだありません。下のフォームから追加してください。",
+  placeholder: "例: 会議",
+  archiveTitle: "イベントラベルをアーカイブしますか？",
+  usageNoun: "イベント",
+};
+
+export const LIFE_LABEL_SETTINGS_COPY: EventLabelSettingsCopy = {
+  title: "生活ラベルの管理",
+  description:
+    "睡眠・お風呂・食事など、生活の種類を登録します。名前と色は貼り済みの予定にも反映されます。",
+  empty: "生活ラベルがまだありません。下のフォームから追加してください。",
+  placeholder: "例: お風呂",
+  archiveTitle: "生活ラベルをアーカイブしますか？",
+  usageNoun: "生活",
+};
+
 type EventLabelSettingsProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   labels: EventLabel[];
-  /** event_label_id ごとの使用件数（アーカイブ確認の警告に使う）。 */
+  /** event_label_id / life_label_id ごとの使用件数（アーカイブ確認の警告に使う）。 */
   usageCounts: Record<string, number>;
   onAdd: (value: EventLabelFormValue) => void | Promise<void>;
   onUpdate: (id: string, value: EventLabelFormValue) => void | Promise<void>;
   onArchive: (id: string) => void | Promise<void>;
+  copy?: EventLabelSettingsCopy;
 };
 
 type LabelDraft = {
@@ -76,6 +106,7 @@ export function EventLabelSettings({
   onAdd,
   onUpdate,
   onArchive,
+  copy = DEFAULT_COPY,
 }: EventLabelSettingsProps) {
   const [draft, setDraft] = useState<LabelDraft>(() => createDraft());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -119,10 +150,8 @@ export function EventLabelSettings({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>イベントラベルの管理</DialogTitle>
-            <DialogDescription>
-              会議・私用・通院など、イベントの種類を登録します。名前と色は貼り済みの予定にも反映されます。
-            </DialogDescription>
+            <DialogTitle>{copy.title}</DialogTitle>
+            <DialogDescription>{copy.description}</DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-4">
@@ -167,7 +196,7 @@ export function EventLabelSettings({
                 ))}
                 {labels.length === 0 && (
                   <div className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-                    イベントラベルがまだありません。下のフォームから追加してください。
+                    {copy.empty}
                   </div>
                 )}
               </div>
@@ -199,7 +228,7 @@ export function EventLabelSettings({
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, name: event.target.value }))
                   }
-                  placeholder="例: 会議"
+                  placeholder={copy.placeholder}
                   aria-label="ラベル名"
                 />
               </InlineFieldRow>
@@ -271,12 +300,12 @@ export function EventLabelSettings({
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setArchiveTarget(null);
         }}
-        title="イベントラベルをアーカイブしますか？"
+        title={copy.archiveTitle}
         itemName={archiveTarget?.name ?? ""}
         actionLabel="アーカイブ"
         description={
           archiveUsage > 0
-            ? `「${archiveTarget?.name}」は ${archiveUsage} 件のイベントで使われています。アーカイブしても既存の予定は残りますが、今後の選択肢からは外れます。`
+            ? `「${archiveTarget?.name}」は ${archiveUsage} 件の${copy.usageNoun}で使われています。アーカイブしても既存の予定は残りますが、今後の選択肢からは外れます。`
             : `「${archiveTarget?.name}」をアーカイブします。今後の選択肢からは外れます。`
         }
         onConfirm={() => {

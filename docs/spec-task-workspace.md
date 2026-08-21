@@ -119,6 +119,7 @@ Watch / iPhone / Windows / カレンダー連携の修正要件は [spec-apple-d
 | `20260611000007_tasks_recurring_link.sql` | `tasks` に定期タスク紐付け列 |
 | `20260611000008_event_labels.sql` | イベントラベル + `schedule_entries.event_label_id` |
 | `20260611000009_schedule_label_seeds.sql` | 勤務/イベントラベルの初期 seed + 新規ユーザー trigger |
+| `20260821000010_life_labels_and_shift_category.sql` | 生活ラベル + `schedule_entries.kind=life` + 勤務ラベル `category`（勤務/定期） |
 
 #### `task_statuses`
 
@@ -297,7 +298,7 @@ Watch / iPhone / Windows / カレンダー連携の修正要件は [spec-apple-d
 - レポートの「完了待ち」セクション。
 - **ネイティブ iOS / watchOS アプリ**（文字盤コンプリケーション、手首での完了）。Watch v1 の追加は Siri ショートカット。予定のカレンダー閲覧は ICS 利用開始後。詳細は [spec-apple-devices.md](./spec-apple-devices.md) §7。
 - Google / Apple カレンダーから本アプリへの書き戻し。
-- HealthKit / Reminders.app。音声入力に使うショートカットは v1 の範囲。
+- HealthKit / Reminders.app。睡眠は Watch の「おはよう／おやすみ」で記録する（[spec-apple-devices.md](./spec-apple-devices.md) §4.4）。音声入力に使うショートカットは v1 の範囲。
 
 ## 7. 要件確定事項
 
