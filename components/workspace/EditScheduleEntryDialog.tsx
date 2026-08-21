@@ -15,7 +15,6 @@ import {
   type EventLabel,
   type LifeLabel,
   type ScheduleEntry,
-  type ShiftLabel,
 } from "@/lib/schema";
 import { scheduleKindBadge } from "@/lib/computed/schedule-kind";
 import { cn } from "@/lib/utils";
@@ -74,7 +73,6 @@ type EditScheduleEntryDialogProps = {
   entry: ScheduleEntry | undefined;
   eventLabels: EventLabel[];
   lifeLabels: LifeLabel[];
-  shiftLabelsById: ReadonlyMap<string, ShiftLabel>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdateEntry: (
@@ -142,7 +140,6 @@ export function EditScheduleEntryDialog({
   entry,
   eventLabels,
   lifeLabels,
-  shiftLabelsById,
   open,
   onOpenChange,
   onUpdateEntry,
@@ -166,8 +163,8 @@ export function EditScheduleEntryDialog({
 
   const isEvent = entry.kind === "event";
   const isLife = entry.kind === "life";
-  const isShift = entry.kind === "shift";
-  const kindLabel = scheduleKindBadge(entry, shiftLabelsById);
+  const isTimedLabel = entry.kind === "shift" || entry.kind === "activity";
+  const kindLabel = scheduleKindBadge(entry);
   const selectedEventLabel = eventLabels.find(
     (label) => label.id === draft.eventLabelId,
   );
@@ -332,7 +329,7 @@ export function EditScheduleEntryDialog({
                   </InlineFieldRow>
                 </>
               )}
-              {isShift ? (
+              {isTimedLabel ? (
                 <p className="text-xs text-muted-foreground">
                   この日だけ時刻を変えます。同じラベルのほかの日はそのままです。
                 </p>

@@ -8,7 +8,7 @@ import {
 } from "@/lib/computed/schedule-datetime";
 import {
   type ScheduleEntry,
-  type ShiftLabel,
+  type TimedScheduleLabel,
   type Task,
 } from "@/lib/schema";
 
@@ -23,7 +23,7 @@ export type AgendaTaskItem = {
 };
 
 export type AgendaEntryItem = {
-  kind: "event" | "shift" | "life";
+  kind: "event" | "shift" | "life" | "activity";
   sortMinutes: number;
   timeLabel: string;
   entry: ScheduleEntry;
@@ -47,7 +47,7 @@ export function buildDayAgenda(
   dateKey: string,
   tasksOnDay: Task[],
   entries: ScheduleEntry[],
-  shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
+  timedLabelsById: ReadonlyMap<string, TimedScheduleLabel>,
 ): AgendaItem[] {
   const items: AgendaItem[] = [];
 
@@ -61,7 +61,7 @@ export function buildDayAgenda(
   }
 
   for (const entry of entries) {
-    if (isAllDayGridEntry(entry, shiftLabelsById)) {
+    if (isAllDayGridEntry(entry, timedLabelsById)) {
       const startKey = dateKeyFromJstIso(entry.startsAt);
       const endKey = dateKeyFromJstIso(entry.endsAt);
       if (dateKey >= startKey && dateKey <= endKey) {

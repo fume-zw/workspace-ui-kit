@@ -59,6 +59,7 @@ describe("formatAgendaSpeak", () => {
           shiftLabelId: null,
           eventLabelId: null,
           lifeLabelId: null,
+          activityLabelId: null,
           timeOverridden: false,
         },
       },

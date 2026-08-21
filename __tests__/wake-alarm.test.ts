@@ -14,7 +14,6 @@ function makeLabel(
     id,
     name,
     displayType,
-    category: extras.category ?? "work",
     defaultStartTime: extras.defaultStartTime ?? null,
     defaultEndTime: extras.defaultEndTime ?? null,
     endsNextDay: extras.endsNextDay ?? false,
@@ -73,6 +72,7 @@ function shift(
     shiftLabelId: label.id,
     eventLabelId: null,
     lifeLabelId: null,
+    activityLabelId: null,
     timeOverridden: false,
   };
 }
@@ -248,6 +248,7 @@ describe("planWakeAlarm patterns", () => {
           shiftLabelId: null,
           eventLabelId: null,
           lifeLabelId: null,
+          activityLabelId: null,
           timeOverridden: false,
         },
       ],
@@ -257,15 +258,21 @@ describe("planWakeAlarm patterns", () => {
   });
 
   it("ignores 定期 (activity) even if it starts at 7", () => {
-    const band = makeLabel("sl-band", "7時練習", "time_block", {
-      category: "activity",
+    const band: ShiftLabel = makeLabel("sl-band", "7時練習", "time_block", {
       defaultStartTime: "07:00",
       defaultEndTime: "09:00",
     });
     const plan = planWakeAlarm({
       now: NIGHT,
-      shiftLabels: [...LABELS, band],
-      entries: [shift(band, "2026-08-21", "07:00", "2026-08-21", "09:00")],
+      shiftLabels: LABELS,
+      entries: [
+        {
+          ...shift(band, "2026-08-21", "07:00", "2026-08-21", "09:00"),
+          kind: "activity",
+          shiftLabelId: null,
+          activityLabelId: band.id,
+        },
+      ],
     });
     expect(plan.pattern).toBe(4);
     expect(plan.patternLabel).toBe("なし");

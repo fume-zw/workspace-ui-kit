@@ -11,9 +11,10 @@
 import { useState, useCallback, useMemo } from "react";
 import { format, startOfDay } from "date-fns";
 
-import { type ScheduleGridMode } from "@/lib/computed/schedule-layout";
+import { type ScheduleGridMode, mergeTimedLabelsById } from "@/lib/computed/schedule-layout";
 
 import {
+  type ActivityLabel,
   type EventLabel,
   type LifeLabel,
   type Project,
@@ -58,15 +59,19 @@ import {
   updateRecurringTemplate,
 } from "@/lib/recurring-db";
 import {
+  archiveActivityLabel,
   archiveEventLabel,
   archiveLifeLabel,
   archiveShiftLabel,
   deleteScheduleEntry,
+  insertActivityLabel,
+  insertActivitiesBulk,
   insertEventLabel,
   insertLifeLabel,
   insertScheduleEntry,
   insertShiftLabel,
   insertShiftsBulk,
+  updateActivityLabel,
   updateEventLabel,
   updateLifeLabel,
   updateScheduleEntry,
@@ -89,6 +94,7 @@ import {
 } from "@/components/workspace/AddEventDialog";
 import { AddShiftDialog } from "@/components/workspace/AddShiftDialog";
 import {
+  ACTIVITY_LABEL_SETTINGS_COPY,
   ShiftLabelSettings,
   type ShiftLabelFormValue,
 } from "@/components/workspace/ShiftLabelSettings";
@@ -111,6 +117,7 @@ type WorkspaceProps = {
   initialTasks: Task[];
   initialSubtasks: Subtask[];
   initialShiftLabels: ShiftLabel[];
+  initialActivityLabels: ActivityLabel[];
   initialEventLabels: EventLabel[];
   initialLifeLabels: LifeLabel[];
   initialScheduleEntries: ScheduleEntry[];
@@ -125,6 +132,7 @@ export function Workspace({
   initialTasks,
   initialSubtasks,
   initialShiftLabels,
+  initialActivityLabels,
   initialEventLabels,
   initialLifeLabels,
   initialScheduleEntries,
@@ -139,6 +147,8 @@ export function Workspace({
   const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks);
   const [shiftLabels, setShiftLabels] =
     useState<ShiftLabel[]>(initialShiftLabels);
+  const [activityLabels, setActivityLabels] =
+    useState<ActivityLabel[]>(initialActivityLabels);
   const [eventLabels, setEventLabels] =
     useState<EventLabel[]>(initialEventLabels);
   const [lifeLabels, setLifeLabels] = useState<LifeLabel[]>(initialLifeLabels);
@@ -170,7 +180,10 @@ export function Workspace({
   const [addLifeOpen, setAddLifeOpen] = useState(false);
   const [addLifeDialogKey, setAddLifeDialogKey] = useState(0);
   const [addShiftOpen, setAddShiftOpen] = useState(false);
+  const [addActivityOpen, setAddActivityOpen] = useState(false);
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
+  const [manageActivityLabelsOpen, setManageActivityLabelsOpen] =
+    useState(false);
   const [manageEventLabelsOpen, setManageEventLabelsOpen] = useState(false);
   const [manageLifeLabelsOpen, setManageLifeLabelsOpen] = useState(false);
   const [editEntryOpen, setEditEntryOpen] = useState(false);
@@ -606,7 +619,6 @@ export function Workspace({
       const { data, error } = await insertShiftLabel(supabase, user.id, {
         name: value.name,
         displayType: value.displayType,
-        category: value.category,
         defaultStartTime: value.defaultStartTime,
         defaultEndTime: value.defaultEndTime,
         endsNextDay: value.endsNextDay,
@@ -614,7 +626,7 @@ export function Workspace({
         sortOrder: nextSortOrder,
       });
       if (error || !data) {
-        setActionError(error ?? "勤務・定期ラベルの追加に失敗しました。");
+        setActionError(error ?? "勤務ラベルの追加に失敗しました。");
         return;
       }
 
@@ -631,14 +643,13 @@ export function Workspace({
       const { data, error } = await updateShiftLabel(supabase, labelId, {
         name: value.name,
         displayType: value.displayType,
-        category: value.category,
         defaultStartTime: value.defaultStartTime,
         defaultEndTime: value.defaultEndTime,
         endsNextDay: value.endsNextDay,
         colorToken: value.colorToken,
       });
       if (error || !data) {
-        setActionError(error ?? "勤務・定期ラベルの更新に失敗しました。");
+        setActionError(error ?? "勤務ラベルの更新に失敗しました。");
         return;
       }
 
@@ -660,6 +671,80 @@ export function Workspace({
 
       setActionError(null);
       setShiftLabels((prev) => prev.filter((label) => label.id !== labelId));
+    },
+    [supabase],
+  );
+
+  const addActivityLabel = useCallback(
+    async (value: ShiftLabelFormValue) => {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const nextSortOrder =
+        activityLabels.reduce((max, label) => Math.max(max, label.sortOrder), 0) +
+        1;
+
+      const { data, error } = await insertActivityLabel(supabase, user.id, {
+        name: value.name,
+        displayType: value.displayType,
+        defaultStartTime: value.defaultStartTime,
+        defaultEndTime: value.defaultEndTime,
+        endsNextDay: value.endsNextDay,
+        colorToken: value.colorToken,
+        sortOrder: nextSortOrder,
+      });
+      if (error || !data) {
+        setActionError(error ?? "定期ラベルの追加に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setActivityLabels((prev) =>
+        [...prev, data].sort((a, b) => a.sortOrder - b.sortOrder),
+      );
+    },
+    [activityLabels, supabase],
+  );
+
+  const updateActivityLabelHandler = useCallback(
+    async (labelId: string, value: ShiftLabelFormValue) => {
+      const { data, error } = await updateActivityLabel(supabase, labelId, {
+        name: value.name,
+        displayType: value.displayType,
+        defaultStartTime: value.defaultStartTime,
+        defaultEndTime: value.defaultEndTime,
+        endsNextDay: value.endsNextDay,
+        colorToken: value.colorToken,
+      });
+      if (error || !data) {
+        setActionError(error ?? "定期ラベルの更新に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setActivityLabels((prev) =>
+        prev.map((label) => (label.id === labelId ? data : label)),
+      );
+    },
+    [supabase],
+  );
+
+  const archiveActivityLabelHandler = useCallback(
+    async (labelId: string) => {
+      const { error } = await archiveActivityLabel(supabase, labelId);
+      if (error) {
+        setActionError(error);
+        return;
+      }
+
+      setActionError(null);
+      setActivityLabels((prev) => prev.filter((label) => label.id !== labelId));
     },
     [supabase],
   );
@@ -849,7 +934,7 @@ export function Workspace({
         label,
       );
       if (error || !data) {
-        setActionError(error ?? "勤務・定期の追加に失敗しました。");
+        setActionError(error ?? "勤務予定の追加に失敗しました。");
         return;
       }
 
@@ -860,6 +945,40 @@ export function Workspace({
       setView("schedule");
     },
     [shiftLabels, supabase],
+  );
+
+  const addActivitiesBulk = useCallback(
+    async (dateKeys: string[], labelId: string) => {
+      const label = activityLabels.find((item) => item.id === labelId);
+      if (!label || dateKeys.length === 0) return;
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const { data, error } = await insertActivitiesBulk(
+        supabase,
+        user.id,
+        dateKeys,
+        label,
+      );
+      if (error || !data) {
+        setActionError(error ?? "定期スケジュールの追加に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setScheduleEntries((prev) =>
+        [...prev, ...data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      );
+      setView("schedule");
+    },
+    [activityLabels, supabase],
   );
 
   const deleteTask = useCallback(
@@ -1159,9 +1278,19 @@ export function Workspace({
       .sort((a, b) => a.title.localeCompare(b.title, "ja"));
   }, [scheduleTasks, scheduleDate]);
 
+  const timedLabelsById = useMemo(
+    () => mergeTimedLabelsById(shiftLabels, activityLabels),
+    [activityLabels, shiftLabels],
+  );
+
   const shiftLabelsById = useMemo(
     () => new Map(shiftLabels.map((label) => [label.id, label])),
     [shiftLabels],
+  );
+
+  const activityLabelsById = useMemo(
+    () => new Map(activityLabels.map((label) => [label.id, label])),
+    [activityLabels],
   );
 
   const eventLabelsById = useMemo(
@@ -1180,9 +1309,9 @@ export function Workspace({
         format(scheduleDate, "yyyy-MM-dd"),
         tasksOnScheduleDate,
         scheduleEntries,
-        shiftLabelsById,
+        timedLabelsById,
       ),
-    [scheduleDate, tasksOnScheduleDate, scheduleEntries, shiftLabelsById],
+    [scheduleDate, tasksOnScheduleDate, scheduleEntries, timedLabelsById],
   );
 
   const shiftUsageCounts = useMemo(() => {
@@ -1190,6 +1319,17 @@ export function Workspace({
     for (const entry of scheduleEntries) {
       if (entry.shiftLabelId) {
         counts[entry.shiftLabelId] = (counts[entry.shiftLabelId] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [scheduleEntries]);
+
+  const activityUsageCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const entry of scheduleEntries) {
+      if (entry.activityLabelId) {
+        counts[entry.activityLabelId] =
+          (counts[entry.activityLabelId] ?? 0) + 1;
       }
     }
     return counts;
@@ -1278,6 +1418,7 @@ export function Workspace({
             setAddLifeOpen(true);
           }}
           onOpenAddShift={() => setAddShiftOpen(true)}
+          onOpenAddActivity={() => setAddActivityOpen(true)}
         />
         <AddTaskDialog
           key={addTaskDialogKey}
@@ -1332,6 +1473,17 @@ export function Workspace({
             setManageLabelsOpen(true);
           }}
         />
+        <AddShiftDialog
+          frame="activity"
+          open={addActivityOpen}
+          onOpenChange={setAddActivityOpen}
+          labels={activityLabels}
+          onSave={addActivitiesBulk}
+          onManageLabels={() => {
+            setAddActivityOpen(false);
+            setManageActivityLabelsOpen(true);
+          }}
+        />
         <ShiftLabelSettings
           open={manageLabelsOpen}
           onOpenChange={setManageLabelsOpen}
@@ -1340,6 +1492,16 @@ export function Workspace({
           onAdd={addShiftLabel}
           onUpdate={updateShiftLabelHandler}
           onArchive={archiveShiftLabelHandler}
+        />
+        <ShiftLabelSettings
+          open={manageActivityLabelsOpen}
+          onOpenChange={setManageActivityLabelsOpen}
+          labels={activityLabels}
+          usageCounts={activityUsageCounts}
+          onAdd={addActivityLabel}
+          onUpdate={updateActivityLabelHandler}
+          onArchive={archiveActivityLabelHandler}
+          copy={ACTIVITY_LABEL_SETTINGS_COPY}
         />
         <EventLabelSettings
           open={manageEventLabelsOpen}
@@ -1365,7 +1527,6 @@ export function Workspace({
           entry={activeScheduleEntry}
           eventLabels={eventLabels}
           lifeLabels={lifeLabels}
-          shiftLabelsById={shiftLabelsById}
           open={editEntryOpen}
           onOpenChange={setEditEntryOpen}
           onUpdateEntry={updateScheduleEntryHandler}
@@ -1421,6 +1582,7 @@ export function Workspace({
             <ScheduleWeekView
               entries={sortedScheduleEntries}
               shiftLabels={shiftLabels}
+              activityLabels={activityLabels}
               eventLabels={eventLabels}
               lifeLabels={lifeLabels}
               mode={scheduleGridMode}
@@ -1438,6 +1600,7 @@ export function Workspace({
             agendaItems={scheduleAgendaItems}
             projects={projects}
             shiftLabelsById={shiftLabelsById}
+            activityLabelsById={activityLabelsById}
             eventLabelsById={eventLabelsById}
             lifeLabelsById={lifeLabelsById}
             onSelectTask={selectTaskFromSchedule}

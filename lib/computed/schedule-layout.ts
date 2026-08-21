@@ -11,7 +11,23 @@ import {
   dateKeyFromJstIso,
   timeFromJstIso,
 } from "@/lib/computed/schedule-datetime";
-import { type ScheduleEntry, type ShiftLabel } from "@/lib/schema";
+import {
+  type ActivityLabel,
+  type ScheduleEntry,
+  type ShiftLabel,
+  type TimedScheduleLabel,
+} from "@/lib/schema";
+
+/** 勤務ラベルと定期ラベルを 1 つの id マップにする（終日判定・レイアウト用）。 */
+export function mergeTimedLabelsById(
+  shiftLabels: readonly ShiftLabel[],
+  activityLabels: readonly ActivityLabel[] = [],
+): Map<string, TimedScheduleLabel> {
+  const map = new Map<string, TimedScheduleLabel>();
+  for (const label of shiftLabels) map.set(label.id, label);
+  for (const label of activityLabels) map.set(label.id, label);
+  return map;
+}
 
 export type ScheduleGridMode = "week" | "day";
 
@@ -103,30 +119,26 @@ export function getTimedSegmentOnDay(
 
 export function isAllDayGridEntry(
   entry: ScheduleEntry,
-  shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
+  timedLabelsById: ReadonlyMap<string, TimedScheduleLabel>,
 ): boolean {
   if (entry.allDay) return true;
-  if (entry.kind === "shift") {
-    const label = entry.shiftLabelId
-      ? shiftLabelsById.get(entry.shiftLabelId)
-      : undefined;
-    return label?.displayType === "all_day_marker";
-  }
-  return false;
+  const labelId = entry.shiftLabelId ?? entry.activityLabelId;
+  if (!labelId) return false;
+  return timedLabelsById.get(labelId)?.displayType === "all_day_marker";
 }
 
 /** 終日帯に載せるエントリを日付キーごとに返す。 */
 export function layoutAllDayChips(
   entries: ScheduleEntry[],
   dateKeys: string[],
-  shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
+  timedLabelsById: ReadonlyMap<string, TimedScheduleLabel>,
 ): Map<string, AllDayGridChip[]> {
   const result = new Map<string, AllDayGridChip[]>(
     dateKeys.map((dateKey) => [dateKey, []]),
   );
 
   for (const entry of entries) {
-    if (!isAllDayGridEntry(entry, shiftLabelsById)) continue;
+    if (!isAllDayGridEntry(entry, timedLabelsById)) continue;
 
     const startKey = dateKeyFromJstIso(entry.startsAt);
     const endKey = dateKeyFromJstIso(entry.endsAt);
@@ -205,7 +217,7 @@ export function assignOverlapColumns(
 export function layoutTimedBlocks(
   entries: ScheduleEntry[],
   dateKeys: string[],
-  shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
+  timedLabelsById: ReadonlyMap<string, TimedScheduleLabel>,
 ): TimedGridBlock[] {
   const blocks: TimedGridBlock[] = [];
 
@@ -213,7 +225,7 @@ export function layoutTimedBlocks(
     const segments: SegmentInput[] = [];
 
     for (const entry of entries) {
-      if (isAllDayGridEntry(entry, shiftLabelsById)) continue;
+      if (isAllDayGridEntry(entry, timedLabelsById)) continue;
       const segment = getTimedSegmentOnDay(entry, dateKey);
       if (!segment) continue;
       segments.push({
@@ -226,7 +238,7 @@ export function layoutTimedBlocks(
     const columns = assignOverlapColumns(segments);
 
     for (const entry of entries) {
-      if (isAllDayGridEntry(entry, shiftLabelsById)) continue;
+      if (isAllDayGridEntry(entry, timedLabelsById)) continue;
       const segment = getTimedSegmentOnDay(entry, dateKey);
       if (!segment) continue;
       const placement = columns.get(entry.id);

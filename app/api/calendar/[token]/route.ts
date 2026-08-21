@@ -48,6 +48,7 @@ export async function GET(
       shiftLabels: scheduleResult.data.shiftLabels,
       eventLabels: scheduleResult.data.eventLabels,
       lifeLabels: scheduleResult.data.lifeLabels,
+      activityLabels: scheduleResult.data.activityLabels,
     });
     return icsResponse(ics);
   } catch (error) {

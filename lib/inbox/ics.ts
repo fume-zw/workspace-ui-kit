@@ -1,4 +1,7 @@
-import { isAllDayGridEntry } from "@/lib/computed/schedule-layout";
+import {
+  isAllDayGridEntry,
+  mergeTimedLabelsById,
+} from "@/lib/computed/schedule-layout";
 import {
   dateKeyFromJstIso,
   nextDateKey,
@@ -6,6 +9,7 @@ import {
 } from "@/lib/computed/schedule-datetime";
 import { jstDateKey } from "@/lib/inbox/parse-utterance";
 import {
+  type ActivityLabel,
   type EventLabel,
   type LifeLabel,
   type ScheduleEntry,
@@ -23,6 +27,7 @@ export type IcsInput = {
   shiftLabels: ShiftLabel[];
   eventLabels: EventLabel[];
   lifeLabels?: LifeLabel[];
+  activityLabels?: ActivityLabel[];
   now?: Date;
 };
 
@@ -112,37 +117,9 @@ function overlapsWindow(
   return startKey <= windowEnd && endKey >= windowStart;
 }
 
-function labeledTitle(
-  labelName: string | undefined,
-  title: string,
-): string {
-  if (!labelName) return title;
-  if (title === labelName) return labelName;
-  return `${labelName} ${title}`;
-}
-
-function eventSummary(
-  entry: ScheduleEntry,
-  shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
-  eventLabelsById: ReadonlyMap<string, EventLabel>,
-  lifeLabelsById: ReadonlyMap<string, LifeLabel>,
-): string {
-  if (entry.kind === "shift") {
-    const label = entry.shiftLabelId
-      ? shiftLabelsById.get(entry.shiftLabelId)
-      : undefined;
-    return label?.name || entry.title;
-  }
-  if (entry.kind === "life") {
-    const label = entry.lifeLabelId
-      ? lifeLabelsById.get(entry.lifeLabelId)
-      : undefined;
-    return labeledTitle(label?.name, entry.title);
-  }
-  const label = entry.eventLabelId
-    ? eventLabelsById.get(entry.eventLabelId)
-    : undefined;
-  return labeledTitle(label?.name, entry.title);
+/** Apple カレンダーは SUMMARY が長いと「…」で切るので、タイトルだけ出す。 */
+function eventSummary(entry: ScheduleEntry): string {
+  return entry.title;
 }
 
 export function buildIcsCalendar(input: IcsInput): string {
@@ -151,10 +128,9 @@ export function buildIcsCalendar(input: IcsInput): string {
   const windowStart = shiftDateKey(today, -WINDOW_PAST_DAYS);
   const windowEnd = shiftDateKey(today, WINDOW_FUTURE_DAYS);
   const stamp = icsUtcStamp(now);
-  const shiftLabelsById = new Map(input.shiftLabels.map((label) => [label.id, label]));
-  const eventLabelsById = new Map(input.eventLabels.map((label) => [label.id, label]));
-  const lifeLabelsById = new Map(
-    (input.lifeLabels ?? []).map((label) => [label.id, label]),
+  const timedLabelsById = mergeTimedLabelsById(
+    input.shiftLabels,
+    input.activityLabels ?? [],
   );
 
   const vevents: string[] = [];
@@ -164,11 +140,9 @@ export function buildIcsCalendar(input: IcsInput): string {
     const endKey = dateKeyFromJstIso(entry.endsAt);
     if (!overlapsWindow(startKey, endKey, windowStart, windowEnd)) continue;
 
-    const summary = escapeText(
-      eventSummary(entry, shiftLabelsById, eventLabelsById, lifeLabelsById),
-    );
+    const summary = escapeText(eventSummary(entry));
     const uid = `${entry.kind}-${entry.id}@task-workspace`;
-    const allDay = isAllDayGridEntry(entry, shiftLabelsById);
+    const allDay = isAllDayGridEntry(entry, timedLabelsById);
 
     if (allDay) {
       const exclusiveEnd = nextDateKey(endKey);
@@ -205,7 +179,7 @@ export function buildIcsCalendar(input: IcsInput): string {
     if (!task.dueDate || task.statusCode === "done") continue;
     const dueKey = task.dueDate.slice(0, 10);
     if (dueKey < windowStart || dueKey > windowEnd) continue;
-    const summary = escapeText(`タスク ${task.title}`);
+    const summary = escapeText(task.title);
     vevents.push(
       lines([
         "BEGIN:VEVENT",

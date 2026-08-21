@@ -9,7 +9,9 @@ import {
   ScheduleDockMiniCalendar,
 } from "@/components/workspace/WorkspaceScheduleDock";
 import { buildDayAgenda } from "@/lib/computed/schedule-agenda";
+import { mergeTimedLabelsById } from "@/lib/computed/schedule-layout";
 import {
+  type ActivityLabel,
   type EventLabel,
   type LifeLabel,
   type Project,
@@ -26,6 +28,7 @@ type MobileScheduleViewProps = {
   projects: Project[];
   scheduleEntries: ScheduleEntry[];
   shiftLabels: ShiftLabel[];
+  activityLabels: ActivityLabel[];
   eventLabels: EventLabel[];
   lifeLabels: LifeLabel[];
   onOpenAddEvent: () => void;
@@ -41,6 +44,7 @@ export function MobileScheduleView({
   projects,
   scheduleEntries,
   shiftLabels,
+  activityLabels,
   eventLabels,
   lifeLabels,
   onOpenAddEvent,
@@ -69,9 +73,19 @@ export function MobileScheduleView({
       .sort((a, b) => a.title.localeCompare(b.title, "ja"));
   }, [scheduleTasks, selectedDate]);
 
+  const timedLabelsById = useMemo(
+    () => mergeTimedLabelsById(shiftLabels, activityLabels),
+    [activityLabels, shiftLabels],
+  );
+
   const shiftLabelsById = useMemo(
     () => new Map(shiftLabels.map((label) => [label.id, label])),
     [shiftLabels],
+  );
+
+  const activityLabelsById = useMemo(
+    () => new Map(activityLabels.map((label) => [label.id, label])),
+    [activityLabels],
   );
 
   const eventLabelsById = useMemo(
@@ -90,9 +104,9 @@ export function MobileScheduleView({
         format(selectedDate, "yyyy-MM-dd"),
         tasksOnScheduleDate,
         scheduleEntries,
-        shiftLabelsById,
+        timedLabelsById,
       ),
-    [selectedDate, tasksOnScheduleDate, scheduleEntries, shiftLabelsById],
+    [selectedDate, tasksOnScheduleDate, scheduleEntries, timedLabelsById],
   );
 
   return (
@@ -113,6 +127,7 @@ export function MobileScheduleView({
           items={agendaItems}
           projects={projects}
           shiftLabelsById={shiftLabelsById}
+          activityLabelsById={activityLabelsById}
           eventLabelsById={eventLabelsById}
           lifeLabelsById={lifeLabelsById}
           onSelectTask={onSelectTask}
@@ -123,7 +138,7 @@ export function MobileScheduleView({
 
       <p className="text-center text-xs text-muted-foreground">
         <CalendarDays className="mr-1 inline size-3.5 align-text-bottom" />
-        予定をタップして時刻を直せます。勤務・定期の一括追加は PC からです。
+        予定をタップして時刻を直せます。勤務予定と定期スケジュールの一括追加は PC からです。
       </p>
 
       <div className="flex flex-col gap-2">
