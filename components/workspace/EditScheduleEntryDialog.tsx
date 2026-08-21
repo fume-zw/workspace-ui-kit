@@ -185,7 +185,7 @@ export function EditScheduleEntryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+      <DialogContent className="gap-0 p-0 sm:max-w-lg">
         <Card className="rounded-none border-0 shadow-none">
           <CardHeader>
             <div className="flex flex-col gap-2">

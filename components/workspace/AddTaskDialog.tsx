@@ -133,7 +133,7 @@ export function AddTaskDialog({
         onOpenChange(nextOpen);
       }}
     >
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
+      <DialogContent className="gap-0 p-0 sm:max-w-lg">
         <Card className="rounded-none border-0 shadow-none">
           <CardHeader>
             <CardTitle>タスクを追加</CardTitle>
