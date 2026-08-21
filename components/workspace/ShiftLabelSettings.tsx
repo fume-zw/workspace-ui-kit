@@ -5,6 +5,7 @@ import { Archive, Check, Pencil, Plus, X } from "lucide-react";
 
 import {
   type ShiftLabel,
+  type ShiftLabelCategory,
   type ShiftLabelDisplayType,
 } from "@/lib/schema";
 import {
@@ -41,6 +42,7 @@ import { Separator } from "@/components/ui/separator";
 export type ShiftLabelFormValue = {
   name: string;
   displayType: ShiftLabelDisplayType;
+  category: ShiftLabelCategory;
   colorToken: string;
   defaultStartTime: string | null;
   defaultEndTime: string | null;
@@ -63,9 +65,15 @@ const DISPLAY_TYPE_OPTIONS: { value: ShiftLabelDisplayType; label: string }[] = 
   { value: "all_day_marker", label: "終日マーカー型（時刻なし）" },
 ];
 
+const CATEGORY_OPTIONS: { value: ShiftLabelCategory; label: string }[] = [
+  { value: "work", label: "勤務" },
+  { value: "activity", label: "定期（吹奏楽・スポーツなど）" },
+];
+
 type LabelDraft = {
   name: string;
   displayType: ShiftLabelDisplayType;
+  category: ShiftLabelCategory;
   colorToken: string;
   startTime: string;
   endTime: string;
@@ -76,6 +84,7 @@ function createDraft(): LabelDraft {
   return {
     name: "",
     displayType: "time_block",
+    category: "work",
     colorToken: DEFAULT_SHIFT_COLOR_TOKEN,
     startTime: "09:00",
     endTime: "17:00",
@@ -87,6 +96,7 @@ function draftFromLabel(label: ShiftLabel): LabelDraft {
   return {
     name: label.name,
     displayType: label.displayType,
+    category: label.category,
     colorToken: label.colorToken,
     startTime: (label.defaultStartTime ?? "09:00").slice(0, 5),
     endTime: (label.defaultEndTime ?? "17:00").slice(0, 5),
@@ -102,6 +112,7 @@ function toFormValue(draft: LabelDraft): ShiftLabelFormValue | null {
     return {
       name,
       displayType: "all_day_marker",
+      category: draft.category,
       colorToken: draft.colorToken,
       defaultStartTime: null,
       defaultEndTime: null,
@@ -114,6 +125,7 @@ function toFormValue(draft: LabelDraft): ShiftLabelFormValue | null {
   return {
     name,
     displayType: "time_block",
+    category: draft.category,
     colorToken: draft.colorToken,
     defaultStartTime: draft.startTime,
     defaultEndTime: draft.endTime,
@@ -122,11 +134,12 @@ function toFormValue(draft: LabelDraft): ShiftLabelFormValue | null {
 }
 
 function timeSummary(label: ShiftLabel): string {
-  if (label.displayType === "all_day_marker") return "終日";
+  const kind = label.category === "activity" ? "定期" : "勤務";
+  if (label.displayType === "all_day_marker") return `${kind}・終日`;
   const start = (label.defaultStartTime ?? "").slice(0, 5);
   const end = (label.defaultEndTime ?? "").slice(0, 5);
-  if (!start || !end) return "時刻未設定";
-  return `${start}–${end}${label.endsNextDay ? "（翌日）" : ""}`;
+  if (!start || !end) return `${kind}・時刻未設定`;
+  return `${kind}・${start}–${end}${label.endsNextDay ? "（翌日）" : ""}`;
 }
 
 export function ShiftLabelSettings({
@@ -180,9 +193,9 @@ export function ShiftLabelSettings({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>勤務ラベルの管理</DialogTitle>
+            <DialogTitle>勤務・定期ラベルの管理</DialogTitle>
             <DialogDescription>
-              採血当番・当直・休みなど、勤務の種類を登録します。名前と色は貼り済みの予定にも反映されます。
+              採血当番・当直のほか、吹奏楽やスポーツなどの定期も登録します。一括で日付に貼ったあと、ずれた日だけ時刻を直せます。
             </DialogDescription>
           </DialogHeader>
 
@@ -233,7 +246,7 @@ export function ShiftLabelSettings({
                 ))}
                 {labels.length === 0 && (
                   <div className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-                    勤務ラベルがまだありません。下のフォームから追加してください。
+                    勤務・定期のラベルがまだありません。下のフォームから追加してください。
                   </div>
                 )}
               </div>
@@ -265,9 +278,32 @@ export function ShiftLabelSettings({
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, name: event.target.value }))
                   }
-                  placeholder="例: 採血当番"
+                  placeholder="例: 吹奏楽"
                   aria-label="ラベル名"
                 />
+              </InlineFieldRow>
+              <InlineFieldRow label="種別">
+                <Select
+                  value={draft.category}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    setDraft((current) => ({
+                      ...current,
+                      category: value as ShiftLabelCategory,
+                    }));
+                  }}
+                >
+                  <SelectTrigger aria-label="種別" className="w-full bg-card">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    {CATEGORY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </InlineFieldRow>
               <InlineFieldRow label="表示タイプ">
                 <Select
@@ -407,12 +443,12 @@ export function ShiftLabelSettings({
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setArchiveTarget(null);
         }}
-        title="勤務ラベルをアーカイブしますか？"
+        title="勤務・定期ラベルをアーカイブしますか？"
         itemName={archiveTarget?.name ?? ""}
         actionLabel="アーカイブ"
         description={
           archiveUsage > 0
-            ? `「${archiveTarget?.name}」は ${archiveUsage} 件の勤務予定で使われています。アーカイブしても既存の予定は残りますが、今後の選択肢からは外れます。`
+            ? `「${archiveTarget?.name}」は ${archiveUsage} 件の予定で使われています。アーカイブしても既存の予定は残りますが、今後の選択肢からは外れます。`
             : `「${archiveTarget?.name}」をアーカイブします。今後の選択肢からは外れます。`
         }
         onConfirm={() => {

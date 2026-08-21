@@ -32,6 +32,7 @@ type GlobalHeaderProps = {
   onOpenAddTask: () => void;
   onOpenAddRecurringTask: () => void;
   onOpenAddEvent: () => void;
+  onOpenAddLife: () => void;
   onOpenAddShift: () => void;
 };
 
@@ -46,6 +47,7 @@ export function GlobalHeader({
   onOpenAddTask,
   onOpenAddRecurringTask,
   onOpenAddEvent,
+  onOpenAddLife,
   onOpenAddShift,
 }: GlobalHeaderProps) {
   return (
@@ -134,7 +136,8 @@ export function GlobalHeader({
           ) : (
             <>
               <DropdownMenuItem onSelect={onOpenAddEvent}>イベント</DropdownMenuItem>
-              <DropdownMenuItem onSelect={onOpenAddShift}>勤務予定</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onOpenAddLife}>生活</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onOpenAddShift}>勤務・定期</DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>

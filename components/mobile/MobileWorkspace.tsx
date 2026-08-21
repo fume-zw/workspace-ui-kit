@@ -15,6 +15,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { EditScheduleEntryDialog } from "@/components/workspace/EditScheduleEntryDialog";
 import {
   type EventLabel,
+  type LifeLabel,
   type Project,
   type ScheduleEntry,
   type ShiftLabel,
@@ -30,7 +31,7 @@ import {
 } from "@/lib/task-db";
 
 type MobileTab = "schedule" | "task";
-type ScheduleView = "list" | "add-event";
+type ScheduleView = "list" | "add-event" | "add-life";
 
 type MobileWorkspaceProps = {
   statuses: TaskStatusOption[];
@@ -39,6 +40,7 @@ type MobileWorkspaceProps = {
   initialTasks: Task[];
   shiftLabels: ShiftLabel[];
   eventLabels: EventLabel[];
+  lifeLabels: LifeLabel[];
   initialScheduleEntries: ScheduleEntry[];
 };
 
@@ -58,6 +60,7 @@ export function MobileWorkspace({
   initialTasks,
   shiftLabels,
   eventLabels,
+  lifeLabels,
   initialScheduleEntries,
 }: MobileWorkspaceProps) {
   const supabase = useMemo(() => createClient(), []);
@@ -70,9 +73,13 @@ export function MobileWorkspace({
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
 
   const projectModels = useMemo(() => toProjects(projects), [projects]);
+  const shiftLabelsById = useMemo(
+    () => new Map(shiftLabels.map((label) => [label.id, label])),
+    [shiftLabels],
+  );
   const selectedTask = tasks.find((task) => task.id === selectedTaskId);
   const selectedEntry = scheduleEntries.find(
-    (entry) => entry.id === selectedEntryId && entry.kind === "event",
+    (entry) => entry.id === selectedEntryId,
   );
 
   const headerTitle =
@@ -80,7 +87,9 @@ export function MobileWorkspace({
       ? "タスク"
       : scheduleView === "add-event"
         ? "イベントを追加"
-        : "予定を見る";
+        : scheduleView === "add-life"
+          ? "生活を追加"
+          : "予定を見る";
 
   const reload = useCallback(async () => {
     const [taskResult, scheduleResult] = await Promise.all([
@@ -137,7 +146,16 @@ export function MobileWorkspace({
   const handleUpdateEntry = async (
     entryId: string,
     patch: Partial<
-      Pick<ScheduleEntry, "title" | "startsAt" | "endsAt" | "allDay" | "eventLabelId">
+      Pick<
+        ScheduleEntry,
+        | "title"
+        | "startsAt"
+        | "endsAt"
+        | "allDay"
+        | "eventLabelId"
+        | "lifeLabelId"
+        | "timeOverridden"
+      >
     >,
   ) => {
     const { data, error } = await updateScheduleEntry(supabase, entryId, patch);
@@ -230,11 +248,12 @@ export function MobileWorkspace({
             onTaskCreated={handleTaskCreated}
           />
         </div>
-      ) : scheduleView === "add-event" ? (
+      ) : scheduleView === "add-event" || scheduleView === "add-life" ? (
         <MobileEventForm
-          key={format(selectedDate, "yyyy-MM-dd")}
+          key={`${scheduleView}-${format(selectedDate, "yyyy-MM-dd")}`}
+          frame={scheduleView === "add-life" ? "life" : "event"}
           defaultDateKey={format(selectedDate, "yyyy-MM-dd")}
-          labels={eventLabels}
+          labels={scheduleView === "add-life" ? lifeLabels : eventLabels}
           onBack={() => setScheduleView("list")}
           onEventCreated={handleEventCreated}
         />
@@ -247,12 +266,11 @@ export function MobileWorkspace({
           scheduleEntries={scheduleEntries}
           shiftLabels={shiftLabels}
           eventLabels={eventLabels}
+          lifeLabels={lifeLabels}
           onOpenAddEvent={() => setScheduleView("add-event")}
+          onOpenAddLife={() => setScheduleView("add-life")}
           onSelectTask={setSelectedTaskId}
-          onSelectEntry={(entryId) => {
-            const entry = scheduleEntries.find((item) => item.id === entryId);
-            if (entry?.kind === "event") setSelectedEntryId(entryId);
-          }}
+          onSelectEntry={setSelectedEntryId}
         />
       )}
 
@@ -273,6 +291,8 @@ export function MobileWorkspace({
         key={selectedEntry?.id ?? "none"}
         entry={selectedEntry}
         eventLabels={eventLabels}
+        lifeLabels={lifeLabels}
+        shiftLabelsById={shiftLabelsById}
         open={Boolean(selectedEntry)}
         onOpenChange={(open) => {
           if (!open) setSelectedEntryId(null);

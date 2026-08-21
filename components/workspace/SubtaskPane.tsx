@@ -2,7 +2,12 @@
 
 import { startOfDay } from "date-fns";
 
-import { type EventLabel, type Project, type ShiftLabel } from "@/lib/schema";
+import {
+  type EventLabel,
+  type LifeLabel,
+  type Project,
+  type ShiftLabel,
+} from "@/lib/schema";
 import { type AgendaItem } from "@/lib/computed/schedule-agenda";
 import {
   ScheduleDockAgenda,
@@ -18,6 +23,7 @@ type SubtaskPaneProps = {
   projects: Project[];
   shiftLabelsById: ReadonlyMap<string, ShiftLabel>;
   eventLabelsById: ReadonlyMap<string, EventLabel>;
+  lifeLabelsById: ReadonlyMap<string, LifeLabel>;
   onSelectTask: (taskId: string) => void;
   onSelectEntry: (entryId: string) => void;
 };
@@ -31,6 +37,7 @@ export function SubtaskPane({
   projects,
   shiftLabelsById,
   eventLabelsById,
+  lifeLabelsById,
   onSelectTask,
   onSelectEntry,
 }: SubtaskPaneProps) {
@@ -71,6 +78,7 @@ export function SubtaskPane({
         projects={projects}
         shiftLabelsById={shiftLabelsById}
         eventLabelsById={eventLabelsById}
+        lifeLabelsById={lifeLabelsById}
         onSelectTask={onSelectTask}
         onSelectEntry={onSelectEntry}
       />

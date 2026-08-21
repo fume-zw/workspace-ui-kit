@@ -18,6 +18,7 @@ function makeEntry(
     allDay: false,
     shiftLabelId: null,
     eventLabelId: null,
+    lifeLabelId: null,
     timeOverridden: false,
     ...overrides,
   };

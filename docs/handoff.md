@@ -163,6 +163,7 @@ auth.users
 | `20260611000007_tasks_recurring_link.sql` | tasks 定期タスク紐付け |
 | `20260611000008_event_labels.sql` | イベントラベル |
 | `20260611000009_schedule_label_seeds.sql` | 勤務/イベントラベル初期 seed |
+| `20260821000010_life_labels_and_shift_category.sql` | 生活ラベル + `kind=life` + 勤務ラベルの種別（勤務/定期） |
 
 **前提:** 同一 Supabase プロジェクトに、自動報告ツール側 `20260409120000_tasks.sql` で `tasks` テーブルが **既にある** 場合を想定。000003 は旧列 DROP を含むため、**kit・レポート改修後**に適用。
 
@@ -594,7 +595,7 @@ Grill（要件深掘り）で設計を確定 → 8 フェーズの実装プラ�
 | **所属** | イベント/勤務 = プロジェクト非紐付け（ワークスペース共通）。定期タスク = Pane 1 の **「定期タスク」固定行**（`RECURRING_PROJECT_ID`）に集約 |
 | **勤務ラベル編集/削除** | 名前・色は貼り済みにも反映（参照方式）。個別に直した時刻は保持。削除は使用中なら警告してアーカイブ（`archived_at`、完全削除しない） |
 | **履歴** | 過去の予定・勤務・定期タスク各回は自動削除せず全部残す |
-| **「＋新規作成」** | 検索バー横 → ボタン1つ+2択メニュー。タスク画面=「タスク/定期タスク」、スケジュール画面=「イベント/勤務予定」 |
+| **「＋新規作成」** | 検索バー横 → ボタン1つ+メニュー。タスク画面=「タスク/定期タスク」、スケジュール画面=「イベント/生活/勤務・定期」 |
 | **位置づけ** | これは配布雛形ではなく **本人の稼働ツール**。CLAUDE.md の「受講生向け・汎用維持」の縛りは実質適用外（医療系ラベル・シードのままで可） |
 
 ### 11-2. 実装プラン（全 8 フェーズ）
@@ -659,7 +660,7 @@ Grill（要件深掘り）で設計を確定 → 8 フェーズの実装プラ�
 
 | ファイル | 内容 |
 |----------|------|
-| `lib/schedule-colors.ts` | 勤務ラベルの色パレット（**新規**）。`SHIFT_LABEL_COLORS`（token→日本語ラベル→色見本ドットのクラス）+ `shiftColorDotClass()`。**既存の `@theme` トークンのみ再利用**（primary / chart-1〜3 / calendar-saturday / muted-foreground）。生の色クラスは不使用 |
+| `lib/schedule-colors.ts` | ラベル色パレット。既存 6 色 + `schedule-orange` / `schedule-teal` / `schedule-violet` / `schedule-indigo`。 |
 | `lib/schedule-db.ts` | `insertShiftsBulk(dates[], label)` を追加。`time_block` は既定時刻で開始/終了（`endsNextDay` or 終了≦開始 なら終了を翌日＝夜勤）、`all_day_marker` は `all_day=true` の 00:00〜23:59。JST 固定 ISO |
 | `components/workspace/ShiftLabelSettings.tsx` | 勤務ラベル管理ダイアログ（**新規**）。一覧（色ドット + 名前 + 時刻要約）+ 追加/編集フォーム（名前・表示タイプ・色 Select・既定時刻・日跨ぎ）+ アーカイブ確認（`DeleteConfirmDialog`、使用中は件数を警告）。1 フォームで追加・編集を兼ねる（`editingId`） |
 | `components/workspace/AddShiftDialog.tsx` | プレースホルダーを本実装に置換。ラベル Select + 月カレンダー **複数日マルチ選択**（`Calendar mode="multiple"` + `ja` ロケール）→「一括で追加」。ラベル 0 件時は「勤務ラベルを管理」導線。保存後スケジュールビューへ切替 |
@@ -715,6 +716,7 @@ Grill（要件深掘り）で設計を確定 → 8 フェーズの実装プラ�
 | ファイル | 内容 |
 |----------|------|
 | `20260611000009_schedule_label_seeds.sql` | 勤務ラベル 3 件（採血当番・当直・休み）+ イベントラベル 3 件（会議・私用・通院）の seed 関数。新規ユーザー trigger + 既存ユーザー（ラベル 0 件のみ）バックフィル |
+| `20260821000010_life_labels_and_shift_category.sql` | 生活ラベル（睡眠・お風呂・食事）+ `schedule_entries.kind=life` + 勤務ラベル `category`（勤務/定期） |
 
 **ドキュメント更新:** `handoff.md` §11、`spec-task-workspace.md` §4.3 / migrations 表、`pane-mapping-task-workspace.md` Pane 4 写像。
 
@@ -732,6 +734,7 @@ Grill（要件深掘り）で設計を確定 → 8 フェーズの実装プラ�
 | `20260611000007_tasks_recurring_link.sql` | tasks 定期タスク紐付け |
 | `20260611000008_event_labels.sql` | イベントラベル |
 | `20260611000009_schedule_label_seeds.sql` | ラベル初期 seed |
+| `20260821000010_life_labels_and_shift_category.sql` | 生活ラベル + 勤務/定期の種別 |
 
 ---
 
@@ -740,6 +743,6 @@ Grill（要件深掘り）で設計を確定 → 8 フェーズの実装プラ�
 2026-08-20 確定。フェーズ 1〜2 を実装した。本番で使うには Vercel に `INBOX_TOKEN` / `INBOX_USER_ID` / `SUPABASE_SERVICE_ROLE_KEY` を置き、iPhone にショートカット「追加」を作る。
 
 - **正本:** [spec-apple-devices.md](./spec-apple-devices.md)
-- **音声:** Siri ショートカット「追加」。`POST /api/inbox`。「スケジュールに入れて」→ 予定、「タスクに入れて」→ 未割当タスク。言わなければ開始時刻で推定
+- **音声:** Siri ショートカット「追加」。`POST /api/inbox`。「スケジュールに入れて」→ 予定、「タスクに入れて」→ 未割当タスク。言わなければ開始時刻で推定。**「おやすみ」「おはよう」** は生活枠の睡眠。**「お風呂」「食事」** も生活。言わなかった日は作らない（ヘルスケア連携はしない）
 - **あとから直す:** iPhone `/mobile` または Windows でプロジェクト割当・時刻の微修正
 - **カレンダー:** まだ使わない。使うときは同じ ICS を購読（おすすめどおり）。鍵は inbox と別

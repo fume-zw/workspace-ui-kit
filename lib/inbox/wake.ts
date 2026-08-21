@@ -108,6 +108,10 @@ function coversDate(
   shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
 ): boolean {
   if (entry.kind !== "shift") return false;
+  const label = entry.shiftLabelId
+    ? shiftLabelsById.get(entry.shiftLabelId)
+    : undefined;
+  if (label?.category === "activity") return false;
   if (isAllDayGridEntry(entry, shiftLabelsById)) {
     const startKey = dateKeyFromJstIso(entry.startsAt);
     const endKey = dateKeyFromJstIso(entry.endsAt);

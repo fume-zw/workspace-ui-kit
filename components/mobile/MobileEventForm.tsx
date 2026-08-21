@@ -37,6 +37,7 @@ type MobileEventFormProps = {
   labels: EventLabel[];
   onBack: () => void;
   onEventCreated: (entry: ScheduleEntry) => void;
+  frame?: "event" | "life";
 };
 
 export function MobileEventForm({
@@ -44,6 +45,7 @@ export function MobileEventForm({
   labels,
   onBack,
   onEventCreated,
+  frame = "event",
 }: MobileEventFormProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -53,6 +55,9 @@ export function MobileEventForm({
   const [success, setSuccess] = useState(false);
 
   const selectedLabel = labels.find((label) => label.id === draft.eventLabelId);
+  const isLife = frame === "life";
+  const heading = isLife ? "生活を追加" : "イベントを追加";
+  const labelAria = isLife ? "生活ラベル" : "イベントラベル";
 
   const resetForm = () => {
     setDraft(createEventDraft(defaultDateKey));
@@ -79,12 +84,13 @@ export function MobileEventForm({
       }
 
       const { data, error: insertError } = await insertScheduleEntry(supabase, user.id, {
-        kind: "event",
+        kind: isLife ? "life" : "event",
         title: input.title,
         startsAt: input.startsAt,
         endsAt: input.endsAt,
         allDay: input.allDay,
-        eventLabelId: input.eventLabelId,
+        eventLabelId: isLife ? null : input.eventLabelId,
+        lifeLabelId: isLife ? input.eventLabelId : null,
       });
       if (insertError) throw new Error(insertError);
       if (!data) throw new Error("保存に失敗しました。");
@@ -114,7 +120,7 @@ export function MobileEventForm({
         >
           <ArrowLeft className="size-4" />
         </Button>
-        <h2 className="text-base font-semibold tracking-tight">イベントを追加</h2>
+        <h2 className="text-base font-semibold tracking-tight">{heading}</h2>
       </div>
 
       <FieldGroup className="gap-6">
@@ -130,7 +136,7 @@ export function MobileEventForm({
         {success && (
           <p className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 py-2.5 text-sm text-foreground">
             <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
-            <span>イベントを保存しました。続けて追加できます。</span>
+            <span>{isLife ? "生活を保存しました。続けて追加できます。" : "イベントを保存しました。続けて追加できます。"}</span>
           </p>
         )}
 
@@ -142,7 +148,7 @@ export function MobileEventForm({
             onChange={(event) =>
               setDraft((current) => ({ ...current, title: event.target.value }))
             }
-            placeholder="例: 打ち合わせ"
+            placeholder={isLife ? "例: お風呂" : "例: 打ち合わせ"}
             required
             autoComplete="off"
             className="h-12 text-base"
@@ -155,15 +161,28 @@ export function MobileEventForm({
             value={draft.eventLabelId ?? NO_EVENT_LABEL_VALUE}
             onValueChange={(value) => {
               if (!value) return;
-              setDraft((current) => ({
-                ...current,
-                eventLabelId: value === NO_EVENT_LABEL_VALUE ? null : value,
-              }));
+              const nextId = value === NO_EVENT_LABEL_VALUE ? null : value;
+              const nextLabel = labels.find((label) => label.id === nextId);
+              setDraft((current) => {
+                const previousLabel = labels.find(
+                  (label) => label.id === current.eventLabelId,
+                );
+                const shouldFillTitle =
+                  isLife &&
+                  nextLabel &&
+                  (current.title.trim() === "" ||
+                    current.title === previousLabel?.name);
+                return {
+                  ...current,
+                  eventLabelId: nextId,
+                  title: shouldFillTitle ? nextLabel.name : current.title,
+                };
+              });
             }}
           >
             <SelectTrigger
               id="mobile-event-label"
-              aria-label="イベントラベル"
+              aria-label={labelAria}
               className="h-12 w-full bg-card text-base"
             >
               <SelectValue placeholder="ラベルなし">
@@ -277,7 +296,7 @@ export function MobileEventForm({
           disabled={loading || draft.title.trim() === ""}
         >
           <Plus className="size-4" />
-          {loading ? "保存中…" : "イベントを保存"}
+          {loading ? "保存中…" : isLife ? "生活を保存" : "イベントを保存"}
         </Button>
         <Button type="button" variant="outline" onClick={onBack}>
           予定一覧へ戻る

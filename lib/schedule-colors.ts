@@ -2,9 +2,8 @@
  * 勤務ラベルの色パレット。
  *
  * `shift_labels.color_token` に保存する値と、その色を表示するための Tailwind クラスの対応。
- * 新しい色は増やさず、`app/globals.css` の `@theme` に既にある semantic token だけを再利用する
- * （生の色クラス `bg-blue-500` 等は使わない）。フェーズ3では色見本のドット表示にのみ使う。
- * フェーズ6の週ビューで枠・背景として使う際も、ここを SSoT にする。
+ * `app/globals.css` の `@theme` にある semantic token を再利用する
+ * （生の色クラス `bg-blue-500` 等は使わない）。色見本・週ビューの枠・背景の SSoT。
  */
 
 export type ShiftColorOption = {
@@ -23,6 +22,10 @@ export const SHIFT_LABEL_COLORS: ShiftColorOption[] = [
   { token: "chart-3", label: "グリーン", dotClass: "bg-chart-3" },
   { token: "calendar-saturday", label: "ブルー", dotClass: "bg-calendar-saturday" },
   { token: "muted-foreground", label: "グレー", dotClass: "bg-muted-foreground" },
+  { token: "schedule-orange", label: "オレンジ", dotClass: "bg-schedule-orange" },
+  { token: "schedule-teal", label: "ティール", dotClass: "bg-schedule-teal" },
+  { token: "schedule-violet", label: "紫", dotClass: "bg-schedule-violet" },
+  { token: "schedule-indigo", label: "インディゴ", dotClass: "bg-schedule-indigo" },
 ];
 
 export const DEFAULT_SHIFT_COLOR_TOKEN = SHIFT_LABEL_COLORS[0].token;
@@ -71,6 +74,26 @@ const SHIFT_BLOCK_CLASS_MAP: Record<string, BlockColorClasses> = {
     bg: "bg-muted",
     border: "border-l-muted-foreground",
     text: "text-muted-foreground",
+  },
+  "schedule-orange": {
+    bg: "bg-schedule-orange/15",
+    border: "border-l-schedule-orange",
+    text: "text-schedule-orange",
+  },
+  "schedule-teal": {
+    bg: "bg-schedule-teal/15",
+    border: "border-l-schedule-teal",
+    text: "text-schedule-teal",
+  },
+  "schedule-violet": {
+    bg: "bg-schedule-violet/15",
+    border: "border-l-schedule-violet",
+    text: "text-schedule-violet",
+  },
+  "schedule-indigo": {
+    bg: "bg-schedule-indigo/15",
+    border: "border-l-schedule-indigo",
+    text: "text-schedule-indigo",
   },
 };
 

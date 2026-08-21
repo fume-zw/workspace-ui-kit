@@ -4,77 +4,56 @@ import { toJstIso } from "@/lib/computed/schedule-datetime";
 import { planWakeAlarm } from "@/lib/inbox/wake";
 import { type ScheduleEntry, type ShiftLabel } from "@/lib/schema";
 
-const six: ShiftLabel = {
-  id: "sl-six",
-  name: "6時",
-  displayType: "time_block",
+function makeLabel(
+  id: string,
+  name: string,
+  displayType: ShiftLabel["displayType"],
+  extras: Partial<ShiftLabel> = {},
+): ShiftLabel {
+  return {
+    id,
+    name,
+    displayType,
+    category: extras.category ?? "work",
+    defaultStartTime: extras.defaultStartTime ?? null,
+    defaultEndTime: extras.defaultEndTime ?? null,
+    endsNextDay: extras.endsNextDay ?? false,
+    colorToken: extras.colorToken ?? "primary",
+    sortOrder: extras.sortOrder ?? 1,
+    archivedAt: null,
+  };
+}
+
+const six = makeLabel("sl-six", "6時", "time_block", {
   defaultStartTime: "06:00",
   defaultEndTime: "14:45",
-  endsNextDay: false,
-  colorToken: "primary",
   sortOrder: 1,
-  archivedAt: null,
-};
-
-const seven: ShiftLabel = {
-  id: "sl-seven",
-  name: "7時",
-  displayType: "time_block",
+});
+const seven = makeLabel("sl-seven", "7時", "time_block", {
   defaultStartTime: "07:00",
   defaultEndTime: "15:45",
-  endsNextDay: false,
-  colorToken: "primary",
   sortOrder: 2,
-  archivedAt: null,
-};
-
-const kessai: ShiftLabel = {
-  id: "sl-kessai",
-  name: "採血",
-  displayType: "time_block",
+});
+const kessai = makeLabel("sl-kessai", "採血", "time_block", {
   defaultStartTime: "07:00",
   defaultEndTime: "12:00",
-  endsNextDay: false,
-  colorToken: "primary",
   sortOrder: 3,
-  archivedAt: null,
-};
-
-const pmOff: ShiftLabel = {
-  id: "sl-pm",
-  name: "PM休",
-  displayType: "all_day_marker",
-  defaultStartTime: null,
-  defaultEndTime: null,
-  endsNextDay: false,
+});
+const pmOff = makeLabel("sl-pm", "PM休", "all_day_marker", {
   colorToken: "muted-foreground",
   sortOrder: 4,
-  archivedAt: null,
-};
-
-const fullOff: ShiftLabel = {
-  id: "sl-full",
-  name: "全休",
-  displayType: "all_day_marker",
-  defaultStartTime: null,
-  defaultEndTime: null,
-  endsNextDay: false,
+});
+const fullOff = makeLabel("sl-full", "全休", "all_day_marker", {
   colorToken: "muted-foreground",
   sortOrder: 5,
-  archivedAt: null,
-};
-
-const tocho: ShiftLabel = {
-  id: "sl-tocho",
-  name: "当直",
-  displayType: "time_block",
+});
+const tocho = makeLabel("sl-tocho", "当直", "time_block", {
   defaultStartTime: "17:00",
   defaultEndTime: "09:00",
   endsNextDay: true,
   colorToken: "chart-1",
   sortOrder: 6,
-  archivedAt: null,
-};
+});
 
 function shift(
   label: ShiftLabel,
@@ -93,6 +72,7 @@ function shift(
     allDay,
     shiftLabelId: label.id,
     eventLabelId: null,
+    lifeLabelId: null,
     timeOverridden: false,
   };
 }
@@ -267,9 +247,25 @@ describe("planWakeAlarm patterns", () => {
           allDay: false,
           shiftLabelId: null,
           eventLabelId: null,
+          lifeLabelId: null,
           timeOverridden: false,
         },
       ],
+    });
+    expect(plan.pattern).toBe(4);
+    expect(plan.patternLabel).toBe("なし");
+  });
+
+  it("ignores 定期 (activity) even if it starts at 7", () => {
+    const band = makeLabel("sl-band", "7時練習", "time_block", {
+      category: "activity",
+      defaultStartTime: "07:00",
+      defaultEndTime: "09:00",
+    });
+    const plan = planWakeAlarm({
+      now: NIGHT,
+      shiftLabels: [...LABELS, band],
+      entries: [shift(band, "2026-08-21", "07:00", "2026-08-21", "09:00")],
     });
     expect(plan.pattern).toBe(4);
     expect(plan.patternLabel).toBe("なし");

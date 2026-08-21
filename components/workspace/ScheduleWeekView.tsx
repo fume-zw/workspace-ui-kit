@@ -22,6 +22,7 @@ import {
   layoutAllDayChips,
   layoutTimedBlocks,
 } from "@/lib/computed/schedule-layout";
+import { scheduleKindBadge } from "@/lib/computed/schedule-kind";
 import { timeFromJstIso } from "@/lib/computed/schedule-datetime";
 import {
   eventColorBlockClasses,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/schedule-colors";
 import {
   type EventLabel,
+  type LifeLabel,
   type ScheduleEntry,
   type ShiftLabel,
 } from "@/lib/schema";
@@ -42,6 +44,7 @@ type ScheduleWeekViewProps = {
   entries: ScheduleEntry[];
   shiftLabels: ShiftLabel[];
   eventLabels: EventLabel[];
+  lifeLabels: LifeLabel[];
   mode: ScheduleGridMode;
   onModeChange: (mode: ScheduleGridMode) => void;
   focusDate: Date;
@@ -59,6 +62,7 @@ export function ScheduleWeekView({
   entries,
   shiftLabels,
   eventLabels,
+  lifeLabels,
   mode,
   onModeChange,
   focusDate,
@@ -75,6 +79,10 @@ export function ScheduleWeekView({
     () => new Map(eventLabels.map((label) => [label.id, label])),
     [eventLabels],
   );
+  const lifeLabelsById = useMemo(
+    () => new Map(lifeLabels.map((label) => [label.id, label])),
+    [lifeLabels],
+  );
   const entryColors = useMemo(
     () => (entry: ScheduleEntry) => {
       if (entry.kind === "shift") {
@@ -84,13 +92,20 @@ export function ScheduleWeekView({
             "primary",
         );
       }
+      if (entry.kind === "life") {
+        return eventColorBlockClasses(
+          entry.lifeLabelId
+            ? lifeLabelsById.get(entry.lifeLabelId)?.colorToken
+            : null,
+        );
+      }
       return eventColorBlockClasses(
         entry.eventLabelId
           ? eventLabelsById.get(entry.eventLabelId)?.colorToken
           : null,
       );
     },
-    [eventLabelsById, shiftLabelsById],
+    [eventLabelsById, lifeLabelsById, shiftLabelsById],
   );
 
   const dateKeys = useMemo(
@@ -371,14 +386,9 @@ export function ScheduleWeekView({
                           {blockTimeLabel(entry)}
                         </span>
                       ) : null}
-                      {height >= 44 && entry.kind === "shift" ? (
+                      {height >= 44 ? (
                         <Badge variant="secondary" className="mt-0.5" size="xs">
-                          勤務
-                        </Badge>
-                      ) : null}
-                      {height >= 44 && entry.kind === "event" ? (
-                        <Badge variant="secondary" className="mt-0.5" size="xs">
-                          イベント
+                          {scheduleKindBadge(entry, shiftLabelsById)}
                         </Badge>
                       ) : null}
                     </button>

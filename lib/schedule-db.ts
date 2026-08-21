@@ -2,31 +2,37 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   type EventLabel,
+  type LifeLabel,
   type ScheduleEntry,
   type ScheduleEntryKind,
   type ShiftLabel,
+  type ShiftLabelCategory,
   type ShiftLabelDisplayType,
 } from "@/lib/schema";
 
 export type ScheduleData = {
   shiftLabels: ShiftLabel[];
   eventLabels: EventLabel[];
+  lifeLabels: LifeLabel[];
   scheduleEntries: ScheduleEntry[];
 };
 
 const SHIFT_LABEL_SELECT =
-  "id, name, display_type, default_start_time, default_end_time, ends_next_day, color_token, sort_order, archived_at";
+  "id, name, display_type, category, default_start_time, default_end_time, ends_next_day, color_token, sort_order, archived_at";
 
 const EVENT_LABEL_SELECT =
   "id, name, color_token, sort_order, archived_at";
 
+const LIFE_LABEL_SELECT = EVENT_LABEL_SELECT;
+
 const SCHEDULE_ENTRY_SELECT =
-  "id, kind, title, starts_at, ends_at, all_day, shift_label_id, event_label_id, time_overridden";
+  "id, kind, title, starts_at, ends_at, all_day, shift_label_id, event_label_id, life_label_id, time_overridden";
 
 type ShiftLabelRow = {
   id: string;
   name: string;
   display_type: ShiftLabelDisplayType;
+  category: ShiftLabelCategory;
   default_start_time: string | null;
   default_end_time: string | null;
   ends_next_day: boolean;
@@ -43,6 +49,8 @@ type EventLabelRow = {
   archived_at: string | null;
 };
 
+type LifeLabelRow = EventLabelRow;
+
 type ScheduleEntryRow = {
   id: string;
   kind: ScheduleEntryKind;
@@ -52,6 +60,7 @@ type ScheduleEntryRow = {
   all_day: boolean;
   shift_label_id: string | null;
   event_label_id: string | null;
+  life_label_id: string | null;
   time_overridden: boolean;
 };
 
@@ -60,6 +69,7 @@ function mapShiftLabelRow(row: ShiftLabelRow): ShiftLabel {
     id: row.id,
     name: row.name,
     displayType: row.display_type,
+    category: row.category === "activity" ? "activity" : "work",
     defaultStartTime: row.default_start_time,
     defaultEndTime: row.default_end_time,
     endsNextDay: row.ends_next_day,
@@ -79,6 +89,16 @@ function mapEventLabelRow(row: EventLabelRow): EventLabel {
   };
 }
 
+function mapLifeLabelRow(row: LifeLabelRow): LifeLabel {
+  return {
+    id: row.id,
+    name: row.name,
+    colorToken: row.color_token,
+    sortOrder: row.sort_order,
+    archivedAt: row.archived_at,
+  };
+}
+
 function mapScheduleEntryRow(row: ScheduleEntryRow): ScheduleEntry {
   return {
     id: row.id,
@@ -89,6 +109,7 @@ function mapScheduleEntryRow(row: ScheduleEntryRow): ScheduleEntry {
     allDay: row.all_day,
     shiftLabelId: row.shift_label_id,
     eventLabelId: row.event_label_id,
+    lifeLabelId: row.life_label_id,
     timeOverridden: row.time_overridden,
   };
 }
@@ -96,26 +117,33 @@ function mapScheduleEntryRow(row: ScheduleEntryRow): ScheduleEntry {
 export async function fetchScheduleData(
   supabase: SupabaseClient,
 ): Promise<{ data: ScheduleData | null; error: string | null }> {
-  const [labelResult, eventLabelResult, entryResult] = await Promise.all([
-    supabase
-      .from("shift_labels")
-      .select(SHIFT_LABEL_SELECT)
-      .is("archived_at", null)
-      .order("sort_order"),
-    supabase
-      .from("event_labels")
-      .select(EVENT_LABEL_SELECT)
-      .is("archived_at", null)
-      .order("sort_order"),
-    supabase
-      .from("schedule_entries")
-      .select(SCHEDULE_ENTRY_SELECT)
-      .order("starts_at"),
-  ]);
+  const [labelResult, eventLabelResult, lifeLabelResult, entryResult] =
+    await Promise.all([
+      supabase
+        .from("shift_labels")
+        .select(SHIFT_LABEL_SELECT)
+        .is("archived_at", null)
+        .order("sort_order"),
+      supabase
+        .from("event_labels")
+        .select(EVENT_LABEL_SELECT)
+        .is("archived_at", null)
+        .order("sort_order"),
+      supabase
+        .from("life_labels")
+        .select(LIFE_LABEL_SELECT)
+        .is("archived_at", null)
+        .order("sort_order"),
+      supabase
+        .from("schedule_entries")
+        .select(SCHEDULE_ENTRY_SELECT)
+        .order("starts_at"),
+    ]);
 
   const error =
     labelResult.error?.message ??
     eventLabelResult.error?.message ??
+    lifeLabelResult.error?.message ??
     entryResult.error?.message ??
     null;
   if (error) {
@@ -129,6 +157,9 @@ export async function fetchScheduleData(
       ),
       eventLabels: (eventLabelResult.data ?? []).map((row) =>
         mapEventLabelRow(row as EventLabelRow),
+      ),
+      lifeLabels: (lifeLabelResult.data ?? []).map((row) =>
+        mapLifeLabelRow(row as LifeLabelRow),
       ),
       scheduleEntries: (entryResult.data ?? []).map((row) =>
         mapScheduleEntryRow(row as ScheduleEntryRow),
@@ -142,29 +173,37 @@ export async function fetchScheduleDataForUser(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<{ data: ScheduleData | null; error: string | null }> {
-  const [labelResult, eventLabelResult, entryResult] = await Promise.all([
-    supabase
-      .from("shift_labels")
-      .select(SHIFT_LABEL_SELECT)
-      .eq("user_id", userId)
-      .is("archived_at", null)
-      .order("sort_order"),
-    supabase
-      .from("event_labels")
-      .select(EVENT_LABEL_SELECT)
-      .eq("user_id", userId)
-      .is("archived_at", null)
-      .order("sort_order"),
-    supabase
-      .from("schedule_entries")
-      .select(SCHEDULE_ENTRY_SELECT)
-      .eq("user_id", userId)
-      .order("starts_at"),
-  ]);
+  const [labelResult, eventLabelResult, lifeLabelResult, entryResult] =
+    await Promise.all([
+      supabase
+        .from("shift_labels")
+        .select(SHIFT_LABEL_SELECT)
+        .eq("user_id", userId)
+        .is("archived_at", null)
+        .order("sort_order"),
+      supabase
+        .from("event_labels")
+        .select(EVENT_LABEL_SELECT)
+        .eq("user_id", userId)
+        .is("archived_at", null)
+        .order("sort_order"),
+      supabase
+        .from("life_labels")
+        .select(LIFE_LABEL_SELECT)
+        .eq("user_id", userId)
+        .is("archived_at", null)
+        .order("sort_order"),
+      supabase
+        .from("schedule_entries")
+        .select(SCHEDULE_ENTRY_SELECT)
+        .eq("user_id", userId)
+        .order("starts_at"),
+    ]);
 
   const error =
     labelResult.error?.message ??
     eventLabelResult.error?.message ??
+    lifeLabelResult.error?.message ??
     entryResult.error?.message ??
     null;
   if (error) {
@@ -179,6 +218,9 @@ export async function fetchScheduleDataForUser(
       eventLabels: (eventLabelResult.data ?? []).map((row) =>
         mapEventLabelRow(row as EventLabelRow),
       ),
+      lifeLabels: (lifeLabelResult.data ?? []).map((row) =>
+        mapLifeLabelRow(row as LifeLabelRow),
+      ),
       scheduleEntries: (entryResult.data ?? []).map((row) =>
         mapScheduleEntryRow(row as ScheduleEntryRow),
       ),
@@ -190,6 +232,7 @@ export async function fetchScheduleDataForUser(
 export type ShiftLabelInsert = {
   name: string;
   displayType: ShiftLabelDisplayType;
+  category?: ShiftLabelCategory;
   defaultStartTime?: string | null;
   defaultEndTime?: string | null;
   endsNextDay?: boolean;
@@ -212,6 +255,7 @@ export async function insertShiftLabel(
       default_end_time: input.defaultEndTime ?? null,
       ends_next_day: input.endsNextDay ?? false,
       color_token: input.colorToken ?? "primary",
+      category: input.category ?? "work",
       sort_order: input.sortOrder,
     })
     .select(SHIFT_LABEL_SELECT)
@@ -236,6 +280,7 @@ export async function updateShiftLabel(
       | "defaultEndTime"
       | "endsNextDay"
       | "colorToken"
+      | "category"
       | "sortOrder"
     >
   >,
@@ -251,6 +296,7 @@ export async function updateShiftLabel(
   }
   if (patch.endsNextDay !== undefined) payload.ends_next_day = patch.endsNextDay;
   if (patch.colorToken !== undefined) payload.color_token = patch.colorToken;
+  if (patch.category !== undefined) payload.category = patch.category;
   if (patch.sortOrder !== undefined) payload.sort_order = patch.sortOrder;
 
   const { data, error } = await supabase
@@ -344,6 +390,67 @@ export async function archiveEventLabel(
   return { error: error?.message ?? null };
 }
 
+export type LifeLabelInsert = EventLabelInsert;
+
+export async function insertLifeLabel(
+  supabase: SupabaseClient,
+  userId: string,
+  input: LifeLabelInsert,
+): Promise<{ data: LifeLabel | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("life_labels")
+    .insert({
+      user_id: userId,
+      name: input.name.trim(),
+      color_token: input.colorToken ?? "primary",
+      sort_order: input.sortOrder,
+    })
+    .select(LIFE_LABEL_SELECT)
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: mapLifeLabelRow(data as LifeLabelRow), error: null };
+}
+
+export async function updateLifeLabel(
+  supabase: SupabaseClient,
+  labelId: string,
+  patch: Partial<Pick<LifeLabel, "name" | "colorToken" | "sortOrder">>,
+): Promise<{ data: LifeLabel | null; error: string | null }> {
+  const payload: Record<string, unknown> = {};
+  if (patch.name !== undefined) payload.name = patch.name.trim();
+  if (patch.colorToken !== undefined) payload.color_token = patch.colorToken;
+  if (patch.sortOrder !== undefined) payload.sort_order = patch.sortOrder;
+
+  const { data, error } = await supabase
+    .from("life_labels")
+    .update(payload)
+    .eq("id", labelId)
+    .select(LIFE_LABEL_SELECT)
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: mapLifeLabelRow(data as LifeLabelRow), error: null };
+}
+
+export async function archiveLifeLabel(
+  supabase: SupabaseClient,
+  labelId: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("life_labels")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", labelId);
+
+  return { error: error?.message ?? null };
+}
+
 export type ScheduleEntryInsert = {
   kind: ScheduleEntryKind;
   title: string;
@@ -352,6 +459,7 @@ export type ScheduleEntryInsert = {
   allDay?: boolean;
   shiftLabelId?: string | null;
   eventLabelId?: string | null;
+  lifeLabelId?: string | null;
   timeOverridden?: boolean;
 };
 
@@ -371,6 +479,7 @@ export async function insertScheduleEntry(
       all_day: input.allDay ?? false,
       shift_label_id: input.shiftLabelId ?? null,
       event_label_id: input.eventLabelId ?? null,
+      life_label_id: input.lifeLabelId ?? null,
       time_overridden: input.timeOverridden ?? false,
     })
     .select(SCHEDULE_ENTRY_SELECT)
@@ -395,6 +504,7 @@ export async function updateScheduleEntry(
       | "allDay"
       | "shiftLabelId"
       | "eventLabelId"
+      | "lifeLabelId"
       | "timeOverridden"
     >
   >,
@@ -406,6 +516,7 @@ export async function updateScheduleEntry(
   if (patch.allDay !== undefined) payload.all_day = patch.allDay;
   if (patch.shiftLabelId !== undefined) payload.shift_label_id = patch.shiftLabelId;
   if (patch.eventLabelId !== undefined) payload.event_label_id = patch.eventLabelId;
+  if (patch.lifeLabelId !== undefined) payload.life_label_id = patch.lifeLabelId;
   if (patch.timeOverridden !== undefined) {
     payload.time_overridden = patch.timeOverridden;
   }

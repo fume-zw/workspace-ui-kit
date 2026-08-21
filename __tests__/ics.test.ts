@@ -16,6 +16,7 @@ const shiftLabels: ShiftLabel[] = [
     colorToken: "primary",
     sortOrder: 1,
     archivedAt: null,
+    category: "work",
   },
 ];
 
@@ -38,6 +39,7 @@ const timedEvent: ScheduleEntry = {
   allDay: false,
   shiftLabelId: null,
   eventLabelId: "el1",
+  lifeLabelId: null,
   timeOverridden: false,
 };
 
