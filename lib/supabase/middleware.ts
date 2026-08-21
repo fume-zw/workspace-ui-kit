@@ -6,6 +6,7 @@ const PUBLIC_PATHS = [
   "/auth/callback",
   "/api/inbox",
   "/api/agenda",
+  "/api/wake",
   "/api/calendar",
 ];
 
@@ -23,6 +24,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/api/inbox/") ||
     pathname === "/api/agenda" ||
     pathname.startsWith("/api/agenda/") ||
+    pathname === "/api/wake" ||
+    pathname.startsWith("/api/wake/") ||
     pathname === "/api/calendar" ||
     pathname.startsWith("/api/calendar/")
   ) {
