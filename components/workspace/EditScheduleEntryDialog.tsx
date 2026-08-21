@@ -11,7 +11,13 @@ import {
   timeFromJstIso,
 } from "@/lib/computed/schedule-datetime";
 import { shiftColorDotClass } from "@/lib/schedule-colors";
-import { type EventLabel, type ScheduleEntry } from "@/lib/schema";
+import {
+  type EventLabel,
+  type LifeLabel,
+  type ScheduleEntry,
+  type ShiftLabel,
+} from "@/lib/schema";
+import { scheduleKindBadge } from "@/lib/computed/schedule-kind";
 import { cn } from "@/lib/utils";
 import { DeleteConfirmDialog } from "@/components/workspace/DeleteConfirmDialog";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +48,16 @@ import {
 const NO_LABEL_VALUE = "__none__";
 
 type ScheduleEntryUpdatePatch = Partial<
-  Pick<ScheduleEntry, "title" | "startsAt" | "endsAt" | "allDay" | "eventLabelId">
+  Pick<
+    ScheduleEntry,
+    | "title"
+    | "startsAt"
+    | "endsAt"
+    | "allDay"
+    | "eventLabelId"
+    | "lifeLabelId"
+    | "timeOverridden"
+  >
 >;
 
 type EntryDraft = {
@@ -52,11 +67,14 @@ type EntryDraft = {
   endTime: string;
   allDay: boolean;
   eventLabelId: string | null;
+  lifeLabelId: string | null;
 };
 
 type EditScheduleEntryDialogProps = {
   entry: ScheduleEntry | undefined;
   eventLabels: EventLabel[];
+  lifeLabels: LifeLabel[];
+  shiftLabelsById: ReadonlyMap<string, ShiftLabel>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdateEntry: (
@@ -75,35 +93,56 @@ function draftFromEntry(entry: ScheduleEntry): EntryDraft {
     endTime: timeFromJstIso(entry.endsAt),
     allDay: entry.allDay,
     eventLabelId: entry.eventLabelId,
+    lifeLabelId: entry.lifeLabelId,
   };
 }
 
 function toPatch(
   draft: EntryDraft,
-  isEvent: boolean,
+  entry: ScheduleEntry,
 ): ScheduleEntryUpdatePatch | null {
   const title = draft.title.trim();
   if (!title || !draft.date) return null;
 
-  const labelPatch: ScheduleEntryUpdatePatch = isEvent
-    ? { eventLabelId: draft.eventLabelId }
-    : {};
+  const labelPatch: ScheduleEntryUpdatePatch =
+    entry.kind === "event"
+      ? { eventLabelId: draft.eventLabelId }
+      : entry.kind === "life"
+        ? { lifeLabelId: draft.lifeLabelId }
+        : {};
 
-  if (draft.allDay) {
-    const range = buildAllDayEventRange(draft.date);
-    return { title, allDay: true, ...range, ...labelPatch };
-  }
-
-  if (!draft.startTime || !draft.endTime) return null;
-  const range = buildTimedEventRange(draft.date, draft.startTime, draft.endTime);
+  const range = draft.allDay
+    ? { allDay: true as const, ...buildAllDayEventRange(draft.date) }
+    : (() => {
+        if (!draft.startTime || !draft.endTime) return null;
+        const timed = buildTimedEventRange(
+          draft.date,
+          draft.startTime,
+          draft.endTime,
+        );
+        if (!timed) return null;
+        return { allDay: false as const, ...timed };
+      })();
   if (!range) return null;
 
-  return { title, allDay: false, ...range, ...labelPatch };
+  const timesChanged =
+    range.startsAt !== entry.startsAt ||
+    range.endsAt !== entry.endsAt ||
+    range.allDay !== entry.allDay;
+
+  return {
+    title,
+    ...range,
+    ...labelPatch,
+    ...(timesChanged ? { timeOverridden: true } : {}),
+  };
 }
 
 export function EditScheduleEntryDialog({
   entry,
   eventLabels,
+  lifeLabels,
+  shiftLabelsById,
   open,
   onOpenChange,
   onUpdateEntry,
@@ -118,6 +157,7 @@ export function EditScheduleEntryDialog({
       endTime: "10:00",
       allDay: false,
       eventLabelId: null,
+      lifeLabelId: null,
     },
   );
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -125,13 +165,22 @@ export function EditScheduleEntryDialog({
   if (!entry) return null;
 
   const isEvent = entry.kind === "event";
-  const kindLabel = entry.kind === "shift" ? "勤務予定" : "イベント";
-  const selectedLabel = eventLabels.find(
+  const isLife = entry.kind === "life";
+  const isShift = entry.kind === "shift";
+  const kindLabel = scheduleKindBadge(entry, shiftLabelsById);
+  const selectedEventLabel = eventLabels.find(
     (label) => label.id === draft.eventLabelId,
   );
+  const selectedLifeLabel = lifeLabels.find(
+    (label) => label.id === draft.lifeLabelId,
+  );
+  const selectableLabels = isLife ? lifeLabels : eventLabels;
+  const selectedLabel = isLife ? selectedLifeLabel : selectedEventLabel;
+  const selectedLabelId = isLife ? draft.lifeLabelId : draft.eventLabelId;
+  const labelAria = isLife ? "生活ラベル" : "イベントラベル";
 
   const handleSave = async () => {
-    const patch = toPatch(draft, isEvent);
+    const patch = toPatch(draft, entry);
     if (!patch) return;
     await onUpdateEntry(entry.id, patch);
     onOpenChange(false);
@@ -161,21 +210,23 @@ export function EditScheduleEntryDialog({
                   aria-label="タイトル"
                 />
               </InlineFieldRow>
-              {isEvent && (
+              {(isEvent || isLife) && (
                 <InlineFieldRow label="ラベル">
                   <div className="flex items-center gap-2">
                     <Select
-                      value={draft.eventLabelId ?? NO_LABEL_VALUE}
+                      value={selectedLabelId ?? NO_LABEL_VALUE}
                       onValueChange={(value) => {
                         if (!value) return;
-                        setDraft((current) => ({
-                          ...current,
-                          eventLabelId: value === NO_LABEL_VALUE ? null : value,
-                        }));
+                        const nextId = value === NO_LABEL_VALUE ? null : value;
+                        setDraft((current) =>
+                          isLife
+                            ? { ...current, lifeLabelId: nextId }
+                            : { ...current, eventLabelId: nextId },
+                        );
                       }}
                     >
                       <SelectTrigger
-                        aria-label="イベントラベル"
+                        aria-label={labelAria}
                         className="w-full bg-card"
                       >
                         <SelectValue>
@@ -197,7 +248,7 @@ export function EditScheduleEntryDialog({
                       </SelectTrigger>
                       <SelectContent align="start">
                         <SelectItem value={NO_LABEL_VALUE}>ラベルなし</SelectItem>
-                        {eventLabels.map((label) => (
+                        {selectableLabels.map((label) => (
                           <SelectItem key={label.id} value={label.id}>
                             <span className="flex items-center gap-2">
                               <span
@@ -219,7 +270,7 @@ export function EditScheduleEntryDialog({
                         variant="ghost"
                         size="icon-sm"
                         onClick={onManageLabels}
-                        aria-label="イベントラベルを管理"
+                        aria-label={`${labelAria}を管理`}
                         className="shrink-0 text-muted-foreground hover:text-foreground"
                       >
                         <Settings2 />
@@ -281,6 +332,11 @@ export function EditScheduleEntryDialog({
                   </InlineFieldRow>
                 </>
               )}
+              {isShift ? (
+                <p className="text-xs text-muted-foreground">
+                  この日だけ時刻を変えます。同じラベルのほかの日はそのままです。
+                </p>
+              ) : null}
             </dl>
 
             <div className="flex justify-end border-t border-border pt-4">

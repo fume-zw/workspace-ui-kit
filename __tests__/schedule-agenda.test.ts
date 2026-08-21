@@ -18,6 +18,7 @@ function makeEntry(
     allDay: false,
     shiftLabelId: null,
     eventLabelId: null,
+    lifeLabelId: null,
     timeOverridden: false,
     ...overrides,
   };
@@ -94,6 +95,7 @@ describe("buildDayAgenda", () => {
       colorToken: "muted-foreground",
       sortOrder: 1,
       archivedAt: null,
+      category: "work",
     };
     const entries = [
       makeEntry({
@@ -116,5 +118,20 @@ describe("buildDayAgenda", () => {
 
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ kind: "shift", timeLabel: "終日" });
+  });
+
+  it("生活エントリは kind: life で時刻順に並ぶ", () => {
+    const entries = [
+      makeEntry({
+        id: "life-meal",
+        kind: "life",
+        title: "食事",
+        startsAt: toJstIso("2026-07-06", "12:00"),
+        endsAt: toJstIso("2026-07-06", "12:30"),
+      }),
+    ];
+    const items = buildDayAgenda("2026-07-06", [], entries, new Map());
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ kind: "life", timeLabel: "12:00–12:30" });
   });
 });

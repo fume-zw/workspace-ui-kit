@@ -31,7 +31,19 @@ export type ParsedInboxSleep = {
   startTime: string;
 };
 
-export type ParsedInbox = ParsedInboxTask | ParsedInboxEvent | ParsedInboxSleep;
+export type ParsedInboxLife = {
+  kind: "life";
+  title: string;
+  dateKey: string;
+  startTime: string;
+  endTime: string;
+};
+
+export type ParsedInbox =
+  | ParsedInboxTask
+  | ParsedInboxEvent
+  | ParsedInboxSleep
+  | ParsedInboxLife;
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -82,6 +94,38 @@ const WAKE_PHRASES = [
   "起きた",
   "起床",
 ] as const;
+
+/** 長い語を先に見る。発話の残りが生活語だけなら生活記録にする。 */
+const LIFE_PHRASES: { phrase: string; title: string }[] = [
+  { phrase: "お風呂に入った", title: "お風呂" },
+  { phrase: "お風呂入った", title: "お風呂" },
+  { phrase: "お風呂します", title: "お風呂" },
+  { phrase: "お風呂した", title: "お風呂" },
+  { phrase: "おふろ", title: "お風呂" },
+  { phrase: "お風呂", title: "お風呂" },
+  { phrase: "入浴", title: "お風呂" },
+  { phrase: "風呂", title: "お風呂" },
+  { phrase: "朝ごはん", title: "食事" },
+  { phrase: "昼ごはん", title: "食事" },
+  { phrase: "夜ごはん", title: "食事" },
+  { phrase: "朝御飯", title: "食事" },
+  { phrase: "昼御飯", title: "食事" },
+  { phrase: "夜御飯", title: "食事" },
+  { phrase: "ごはん", title: "食事" },
+  { phrase: "ご飯", title: "食事" },
+  { phrase: "朝食", title: "食事" },
+  { phrase: "昼食", title: "食事" },
+  { phrase: "夕食", title: "食事" },
+  { phrase: "夕飯", title: "食事" },
+  { phrase: "ランチ", title: "食事" },
+  { phrase: "ディナー", title: "食事" },
+  { phrase: "食事した", title: "食事" },
+  { phrase: "食事します", title: "食事" },
+  { phrase: "食事", title: "食事" },
+];
+
+/** 生活の既定の長さ。時刻を言わなければいまからこの分数。 */
+export const LIFE_DEFAULT_MINUTES = 30;
 
 type TimeModifier = "am" | "pm" | "morning" | "night" | null;
 
@@ -609,6 +653,79 @@ function tryParseSleep(afterDest: string, now: Date): ParsedInboxSleep | null {
   };
 }
 
+function extractLifePhrase(text: string): {
+  title: string;
+  rest: string;
+} | null {
+  let bestIndex = -1;
+  let bestLength = 0;
+  let bestTitle: string | null = null;
+
+  for (const item of LIFE_PHRASES) {
+    const index = text.indexOf(item.phrase);
+    if (index < 0) continue;
+    if (
+      bestIndex < 0 ||
+      index < bestIndex ||
+      (index === bestIndex && item.phrase.length > bestLength)
+    ) {
+      bestIndex = index;
+      bestLength = item.phrase.length;
+      bestTitle = item.title;
+    }
+  }
+
+  if (bestTitle === null || bestIndex < 0) return null;
+  return {
+    title: bestTitle,
+    rest: text.slice(0, bestIndex) + text.slice(bestIndex + bestLength),
+  };
+}
+
+function lifeLeftoverOk(rest: string): boolean {
+  const cleaned = cleanTitle(rest, "event")
+    .replace(/(に)?入りました$/g, "")
+    .replace(/(に)?入った$/g, "")
+    .replace(/しました$/g, "")
+    .replace(/します$/g, "")
+    .replace(/した$/g, "")
+    .replace(/です$/g, "")
+    .replace(/だよ$/g, "")
+    .replace(/だ$/g, "")
+    .trim();
+  return cleaned === "" || cleaned === "予定";
+}
+
+function tryParseLife(afterDest: string, now: Date): ParsedInboxLife | null {
+  const matched = extractLifePhrase(afterDest);
+  if (!matched) return null;
+
+  const times = extractTimes(matched.rest);
+  const dates = extractDates(times.rest, now);
+  if (!lifeLeftoverOk(dates.rest)) return null;
+
+  const hasStart = Boolean(times.startTime) && !times.hadUntilOnly;
+  const startTime = hasStart ? times.startTime! : hhmmFromNow(now);
+  const endFromSpan = times.endTime;
+  const added = addHoursToHhmm(startTime, LIFE_DEFAULT_MINUTES / 60);
+  const endTime = endFromSpan ?? added.hhmm;
+  const dateKey = dates.dateKey
+    ? times.startExtraDays
+      ? addDaysToKey(dates.dateKey, times.startExtraDays)
+      : dates.dateKey
+    : times.startExtraDays
+      ? addDaysToKey(jstDateKey(now), times.startExtraDays)
+      : jstDateKey(now);
+
+  return {
+    kind: "life",
+    title: matched.title,
+    dateKey,
+    startTime,
+    endTime,
+  };
+}
+
 export function parseUtterance(
   raw: string,
   now: Date = new Date(),
@@ -617,6 +734,10 @@ export function parseUtterance(
   const { dest, rest: afterDest } = extractDestination(normalized);
   const sleep = tryParseSleep(afterDest, now);
   if (sleep) return sleep;
+  if (dest !== "task") {
+    const life = tryParseLife(afterDest, now);
+    if (life) return life;
+  }
 
   const times = extractTimes(afterDest);
   const dates = extractDates(times.rest, now);
@@ -672,6 +793,9 @@ export function formatInboxWhen(parsed: ParsedInbox): string {
     const label = parsed.action === "bedtime" ? "就寝" : "起床";
     return `${label} ${parsed.dateKey} ${parsed.startTime}`;
   }
+  if (parsed.kind === "life") {
+    return `${parsed.dateKey} ${parsed.startTime}–${parsed.endTime}`;
+  }
   if (parsed.allDay) return `${parsed.dateKey}終日`;
   return `${parsed.dateKey} ${parsed.startTime}–${parsed.endTime}`;
 }
@@ -710,6 +834,16 @@ export function speakInboxSuccess(parsed: ParsedInbox): string {
   if (parsed.kind === "task") {
     if (!parsed.dueDate) return `${quoted}をタスクに入れました`;
     return `${quoted}を${speakDateFromKey(parsed.dueDate)}期限のタスクに入れました`;
+  }
+  if (parsed.kind === "life") {
+    return `${speakEventWhen({
+      kind: "event",
+      title: parsed.title,
+      dateKey: parsed.dateKey,
+      allDay: false,
+      startTime: parsed.startTime,
+      endTime: parsed.endTime,
+    })}に${quoted}を生活に入れました`;
   }
   return `${speakEventWhen(parsed)}に${quoted}を予定に入れました`;
 }

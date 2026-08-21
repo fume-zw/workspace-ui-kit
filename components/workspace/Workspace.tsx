@@ -15,6 +15,7 @@ import { type ScheduleGridMode } from "@/lib/computed/schedule-layout";
 
 import {
   type EventLabel,
+  type LifeLabel,
   type Project,
   type RecurringTaskTemplate,
   type ScheduleEntry,
@@ -58,13 +59,16 @@ import {
 } from "@/lib/recurring-db";
 import {
   archiveEventLabel,
+  archiveLifeLabel,
   archiveShiftLabel,
   deleteScheduleEntry,
   insertEventLabel,
+  insertLifeLabel,
   insertScheduleEntry,
   insertShiftLabel,
   insertShiftsBulk,
   updateEventLabel,
+  updateLifeLabel,
   updateScheduleEntry,
   updateShiftLabel,
 } from "@/lib/schedule-db";
@@ -92,6 +96,7 @@ import { ScheduleWeekView } from "@/components/workspace/ScheduleWeekView";
 import { EditScheduleEntryDialog } from "@/components/workspace/EditScheduleEntryDialog";
 import {
   EventLabelSettings,
+  LIFE_LABEL_SETTINGS_COPY,
   type EventLabelFormValue,
 } from "@/components/workspace/EventLabelSettings";
 import { TaskListPane } from "@/components/workspace/TaskListPane";
@@ -107,6 +112,7 @@ type WorkspaceProps = {
   initialSubtasks: Subtask[];
   initialShiftLabels: ShiftLabel[];
   initialEventLabels: EventLabel[];
+  initialLifeLabels: LifeLabel[];
   initialScheduleEntries: ScheduleEntry[];
   initialRecurringTemplates: RecurringTaskTemplate[];
   workspace: { name: string; icon: string; unassignedTaskCount: number };
@@ -120,6 +126,7 @@ export function Workspace({
   initialSubtasks,
   initialShiftLabels,
   initialEventLabels,
+  initialLifeLabels,
   initialScheduleEntries,
   initialRecurringTemplates,
   workspace,
@@ -134,6 +141,7 @@ export function Workspace({
     useState<ShiftLabel[]>(initialShiftLabels);
   const [eventLabels, setEventLabels] =
     useState<EventLabel[]>(initialEventLabels);
+  const [lifeLabels, setLifeLabels] = useState<LifeLabel[]>(initialLifeLabels);
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>(
     initialScheduleEntries,
   );
@@ -159,9 +167,12 @@ export function Workspace({
   const [addRecurringDialogKey, setAddRecurringDialogKey] = useState(0);
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [addEventDialogKey, setAddEventDialogKey] = useState(0);
+  const [addLifeOpen, setAddLifeOpen] = useState(false);
+  const [addLifeDialogKey, setAddLifeDialogKey] = useState(0);
   const [addShiftOpen, setAddShiftOpen] = useState(false);
   const [manageLabelsOpen, setManageLabelsOpen] = useState(false);
   const [manageEventLabelsOpen, setManageEventLabelsOpen] = useState(false);
+  const [manageLifeLabelsOpen, setManageLifeLabelsOpen] = useState(false);
   const [editEntryOpen, setEditEntryOpen] = useState(false);
   const [editEntryKey, setEditEntryKey] = useState(0);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
@@ -409,7 +420,13 @@ export function Workspace({
       patch: Partial<
         Pick<
           ScheduleEntry,
-          "title" | "startsAt" | "endsAt" | "allDay" | "eventLabelId"
+          | "title"
+          | "startsAt"
+          | "endsAt"
+          | "allDay"
+          | "eventLabelId"
+          | "lifeLabelId"
+          | "timeOverridden"
         >
       >,
     ) => {
@@ -589,6 +606,7 @@ export function Workspace({
       const { data, error } = await insertShiftLabel(supabase, user.id, {
         name: value.name,
         displayType: value.displayType,
+        category: value.category,
         defaultStartTime: value.defaultStartTime,
         defaultEndTime: value.defaultEndTime,
         endsNextDay: value.endsNextDay,
@@ -596,7 +614,7 @@ export function Workspace({
         sortOrder: nextSortOrder,
       });
       if (error || !data) {
-        setActionError(error ?? "勤務ラベルの追加に失敗しました。");
+        setActionError(error ?? "勤務・定期ラベルの追加に失敗しました。");
         return;
       }
 
@@ -613,13 +631,14 @@ export function Workspace({
       const { data, error } = await updateShiftLabel(supabase, labelId, {
         name: value.name,
         displayType: value.displayType,
+        category: value.category,
         defaultStartTime: value.defaultStartTime,
         defaultEndTime: value.defaultEndTime,
         endsNextDay: value.endsNextDay,
         colorToken: value.colorToken,
       });
       if (error || !data) {
-        setActionError(error ?? "勤務ラベルの更新に失敗しました。");
+        setActionError(error ?? "勤務・定期ラベルの更新に失敗しました。");
         return;
       }
 
@@ -710,6 +729,105 @@ export function Workspace({
     [supabase],
   );
 
+  const addLife = useCallback(
+    async (input: NewEventInput) => {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const { data, error } = await insertScheduleEntry(supabase, user.id, {
+        kind: "life",
+        title: input.title,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        allDay: input.allDay,
+        lifeLabelId: input.eventLabelId,
+      });
+      if (error || !data) {
+        setActionError(error ?? "生活の追加に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setScheduleEntries((prev) =>
+        [...prev, data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      );
+      setSelectedScheduleEntryId(data.id);
+      setView("schedule");
+    },
+    [supabase],
+  );
+
+  const addLifeLabel = useCallback(
+    async (value: EventLabelFormValue) => {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const nextSortOrder =
+        lifeLabels.reduce((max, label) => Math.max(max, label.sortOrder), 0) + 1;
+
+      const { data, error } = await insertLifeLabel(supabase, user.id, {
+        name: value.name,
+        colorToken: value.colorToken,
+        sortOrder: nextSortOrder,
+      });
+      if (error || !data) {
+        setActionError(error ?? "生活ラベルの追加に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setLifeLabels((prev) =>
+        [...prev, data].sort((a, b) => a.sortOrder - b.sortOrder),
+      );
+    },
+    [lifeLabels, supabase],
+  );
+
+  const updateLifeLabelHandler = useCallback(
+    async (labelId: string, value: EventLabelFormValue) => {
+      const { data, error } = await updateLifeLabel(supabase, labelId, {
+        name: value.name,
+        colorToken: value.colorToken,
+      });
+      if (error || !data) {
+        setActionError(error ?? "生活ラベルの更新に失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setLifeLabels((prev) =>
+        prev.map((label) => (label.id === labelId ? data : label)),
+      );
+    },
+    [supabase],
+  );
+
+  const archiveLifeLabelHandler = useCallback(
+    async (labelId: string) => {
+      const { error } = await archiveLifeLabel(supabase, labelId);
+      if (error) {
+        setActionError(error);
+        return;
+      }
+
+      setActionError(null);
+      setLifeLabels((prev) => prev.filter((label) => label.id !== labelId));
+    },
+    [supabase],
+  );
+
   const addShiftsBulk = useCallback(
     async (dateKeys: string[], labelId: string) => {
       const label = shiftLabels.find((item) => item.id === labelId);
@@ -731,7 +849,7 @@ export function Workspace({
         label,
       );
       if (error || !data) {
-        setActionError(error ?? "勤務予定の追加に失敗しました。");
+        setActionError(error ?? "勤務・定期の追加に失敗しました。");
         return;
       }
 
@@ -1051,6 +1169,11 @@ export function Workspace({
     [eventLabels],
   );
 
+  const lifeLabelsById = useMemo(
+    () => new Map(lifeLabels.map((label) => [label.id, label])),
+    [lifeLabels],
+  );
+
   const scheduleAgendaItems = useMemo(
     () =>
       buildDayAgenda(
@@ -1077,6 +1200,16 @@ export function Workspace({
     for (const entry of scheduleEntries) {
       if (entry.eventLabelId) {
         counts[entry.eventLabelId] = (counts[entry.eventLabelId] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [scheduleEntries]);
+
+  const lifeLabelUsageCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const entry of scheduleEntries) {
+      if (entry.lifeLabelId) {
+        counts[entry.lifeLabelId] = (counts[entry.lifeLabelId] ?? 0) + 1;
       }
     }
     return counts;
@@ -1140,6 +1273,10 @@ export function Workspace({
             setAddEventDialogKey((key) => key + 1);
             setAddEventOpen(true);
           }}
+          onOpenAddLife={() => {
+            setAddLifeDialogKey((key) => key + 1);
+            setAddLifeOpen(true);
+          }}
           onOpenAddShift={() => setAddShiftOpen(true)}
         />
         <AddTaskDialog
@@ -1172,6 +1309,19 @@ export function Workspace({
             setManageEventLabelsOpen(true);
           }}
         />
+        <AddEventDialog
+          key={`life-${addLifeDialogKey}`}
+          frame="life"
+          open={addLifeOpen}
+          onOpenChange={setAddLifeOpen}
+          defaultDate={format(scheduleDate, "yyyy-MM-dd")}
+          labels={lifeLabels}
+          onSave={addLife}
+          onManageLabels={() => {
+            setAddLifeOpen(false);
+            setManageLifeLabelsOpen(true);
+          }}
+        />
         <AddShiftDialog
           open={addShiftOpen}
           onOpenChange={setAddShiftOpen}
@@ -1200,17 +1350,33 @@ export function Workspace({
           onUpdate={updateEventLabelHandler}
           onArchive={archiveEventLabelHandler}
         />
+        <EventLabelSettings
+          open={manageLifeLabelsOpen}
+          onOpenChange={setManageLifeLabelsOpen}
+          labels={lifeLabels}
+          usageCounts={lifeLabelUsageCounts}
+          onAdd={addLifeLabel}
+          onUpdate={updateLifeLabelHandler}
+          onArchive={archiveLifeLabelHandler}
+          copy={LIFE_LABEL_SETTINGS_COPY}
+        />
         <EditScheduleEntryDialog
           key={editEntryKey}
           entry={activeScheduleEntry}
           eventLabels={eventLabels}
+          lifeLabels={lifeLabels}
+          shiftLabelsById={shiftLabelsById}
           open={editEntryOpen}
           onOpenChange={setEditEntryOpen}
           onUpdateEntry={updateScheduleEntryHandler}
           onDeleteEntry={deleteScheduleEntryHandler}
           onManageLabels={() => {
             setEditEntryOpen(false);
-            setManageEventLabelsOpen(true);
+            if (activeScheduleEntry?.kind === "life") {
+              setManageLifeLabelsOpen(true);
+            } else {
+              setManageEventLabelsOpen(true);
+            }
           }}
         />
         <div className="flex min-h-0 flex-1">
@@ -1256,6 +1422,7 @@ export function Workspace({
               entries={sortedScheduleEntries}
               shiftLabels={shiftLabels}
               eventLabels={eventLabels}
+              lifeLabels={lifeLabels}
               mode={scheduleGridMode}
               onModeChange={setScheduleGridMode}
               focusDate={scheduleDate}
@@ -1272,6 +1439,7 @@ export function Workspace({
             projects={projects}
             shiftLabelsById={shiftLabelsById}
             eventLabelsById={eventLabelsById}
+            lifeLabelsById={lifeLabelsById}
             onSelectTask={selectTaskFromSchedule}
             onSelectEntry={focusScheduleEntry}
           />

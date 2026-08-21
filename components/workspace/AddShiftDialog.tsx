@@ -26,7 +26,9 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -69,6 +71,8 @@ export function AddShiftDialog({
 
   const selectedLabel = labels.find((label) => label.id === labelId);
   const canSave = selectedDates.length > 0 && selectedLabel !== undefined;
+  const workLabels = labels.filter((label) => label.category !== "activity");
+  const activityLabels = labels.filter((label) => label.category === "activity");
 
   const handleSave = async () => {
     if (!selectedLabel) return;
@@ -91,17 +95,17 @@ export function AddShiftDialog({
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
         <Card className="rounded-none border-0 shadow-none">
           <CardHeader>
-            <CardTitle>勤務予定を追加</CardTitle>
+            <CardTitle>勤務・定期を追加</CardTitle>
           </CardHeader>
           <CardContent>
             {labels.length === 0 ? (
               <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-8 text-center">
                 <p className="text-sm text-muted-foreground">
-                  勤務ラベルがまだありません。先に採血当番・当直・休みなどのラベルを登録してください。
+                  勤務・定期のラベルがまだありません。採血当番・当直のほか、吹奏楽やスポーツもラベルとして登録できます。
                 </p>
                 <Button type="button" variant="outline" onClick={onManageLabels}>
                   <Settings2 data-icon="inline-start" />
-                  勤務ラベルを管理
+                  ラベルを管理
                 </Button>
               </div>
             ) : (
@@ -114,7 +118,7 @@ export function AddShiftDialog({
                         if (value) setLabelId(value);
                       }}
                     >
-                      <SelectTrigger aria-label="勤務ラベル" className="w-full bg-card">
+                      <SelectTrigger aria-label="勤務・定期ラベル" className="w-full bg-card">
                         <SelectValue placeholder="ラベルを選択">
                           {selectedLabel && (
                             <span className="flex items-center gap-2">
@@ -134,23 +138,50 @@ export function AddShiftDialog({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent align="start">
-                        {labels.map((label) => (
-                          <SelectItem key={label.id} value={label.id}>
-                            <span className="flex items-center gap-2">
-                              <span
-                                aria-hidden="true"
-                                className={cn(
-                                  "size-3 rounded-full",
-                                  shiftColorDotClass(label.colorToken),
-                                )}
-                              />
-                              {label.name}
-                              <span className="text-muted-foreground">
-                                {timeSummary(label)}
-                              </span>
-                            </span>
-                          </SelectItem>
-                        ))}
+                        {workLabels.length > 0 ? (
+                          <SelectGroup>
+                            <SelectLabel>勤務</SelectLabel>
+                            {workLabels.map((label) => (
+                              <SelectItem key={label.id} value={label.id}>
+                                <span className="flex items-center gap-2">
+                                  <span
+                                    aria-hidden="true"
+                                    className={cn(
+                                      "size-3 rounded-full",
+                                      shiftColorDotClass(label.colorToken),
+                                    )}
+                                  />
+                                  {label.name}
+                                  <span className="text-muted-foreground">
+                                    {timeSummary(label)}
+                                  </span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ) : null}
+                        {activityLabels.length > 0 ? (
+                          <SelectGroup>
+                            <SelectLabel>定期</SelectLabel>
+                            {activityLabels.map((label) => (
+                              <SelectItem key={label.id} value={label.id}>
+                                <span className="flex items-center gap-2">
+                                  <span
+                                    aria-hidden="true"
+                                    className={cn(
+                                      "size-3 rounded-full",
+                                      shiftColorDotClass(label.colorToken),
+                                    )}
+                                  />
+                                  {label.name}
+                                  <span className="text-muted-foreground">
+                                    {timeSummary(label)}
+                                  </span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ) : null}
                       </SelectContent>
                     </Select>
                   </InlineFieldRow>
@@ -170,7 +201,7 @@ export function AddShiftDialog({
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
                     {selectedDates.length > 0
-                      ? `${selectedDates.length} 日を選択中`
+                      ? `${selectedDates.length} 日を選択中。あとからずれた日だけ時刻を直せます`
                       : "日付を選んでください"}
                   </p>
                   <Button

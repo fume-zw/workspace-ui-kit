@@ -381,4 +381,46 @@ describe("inbox speak helpers", () => {
       dueDate: null,
     });
   });
+
+  it("records お風呂 as life for 30 minutes from now", () => {
+    const parsed = parseUtterance("お風呂", NOW);
+    expect(parsed).toEqual({
+      kind: "life",
+      title: "お風呂",
+      dateKey: "2026-08-20",
+      startTime: "10:00",
+      endTime: "10:30",
+    });
+    expect(speakInboxSuccess(parsed)).toBe(
+      "8月20日10時から10時30分に「お風呂」を生活に入れました",
+    );
+  });
+
+  it("records 食事 as life", () => {
+    const parsed = parseUtterance("食事", NOW);
+    expect(parsed.kind).toBe("life");
+    if (parsed.kind === "life") {
+      expect(parsed.title).toBe("食事");
+      expect(parsed.startTime).toBe("10:00");
+      expect(parsed.endTime).toBe("10:30");
+    }
+  });
+
+  it("keeps 食事をタスクに入れて as a task", () => {
+    const parsed = parseUtterance("食事をタスクに入れて", NOW);
+    expect(parsed).toEqual({
+      kind: "task",
+      title: "食事",
+      dueDate: null,
+    });
+  });
+
+  it("does not treat お風呂掃除 as life", () => {
+    const parsed = parseUtterance("お風呂掃除", NOW);
+    expect(parsed).toEqual({
+      kind: "task",
+      title: "お風呂掃除",
+      dueDate: null,
+    });
+  });
 });

@@ -47,6 +47,8 @@ type AddEventDialogProps = {
   labels: EventLabel[];
   onSave: (input: NewEventInput) => void | Promise<void>;
   onManageLabels: () => void;
+  /** 生活はイベントと同じフォーム。保存先の kind は呼び出し側で分ける。 */
+  frame?: "event" | "life";
 };
 
 export function AddEventDialog({
@@ -56,8 +58,12 @@ export function AddEventDialog({
   labels,
   onSave,
   onManageLabels,
+  frame = "event",
 }: AddEventDialogProps) {
   const [draft, setDraft] = useState<EventDraft>(() => createEventDraft(defaultDate));
+  const isLife = frame === "life";
+  const heading = isLife ? "生活を追加" : "イベントを追加";
+  const labelAria = isLife ? "生活ラベル" : "イベントラベル";
 
   const selectedLabel = labels.find((label) => label.id === draft.eventLabelId);
 
@@ -79,7 +85,7 @@ export function AddEventDialog({
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
         <Card className="rounded-none border-0 shadow-none">
           <CardHeader>
-            <CardTitle>イベントを追加</CardTitle>
+            <CardTitle>{heading}</CardTitle>
           </CardHeader>
           <CardContent>
             <dl className="flex flex-col gap-2.5 text-sm">
@@ -89,7 +95,7 @@ export function AddEventDialog({
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, title: event.target.value }))
                   }
-                  placeholder="タイトルを入力"
+                  placeholder={isLife ? "例: お風呂" : "タイトルを入力"}
                   aria-label="タイトル"
                 />
               </InlineFieldRow>
@@ -99,14 +105,27 @@ export function AddEventDialog({
                     value={draft.eventLabelId ?? NO_EVENT_LABEL_VALUE}
                     onValueChange={(value) => {
                       if (!value) return;
-                      setDraft((current) => ({
-                        ...current,
-                        eventLabelId:
-                          value === NO_EVENT_LABEL_VALUE ? null : value,
-                      }));
+                      const nextId =
+                        value === NO_EVENT_LABEL_VALUE ? null : value;
+                      const nextLabel = labels.find((label) => label.id === nextId);
+                      setDraft((current) => {
+                        const previousLabel = labels.find(
+                          (label) => label.id === current.eventLabelId,
+                        );
+                        const shouldFillTitle =
+                          isLife &&
+                          nextLabel &&
+                          (current.title.trim() === "" ||
+                            current.title === previousLabel?.name);
+                        return {
+                          ...current,
+                          eventLabelId: nextId,
+                          title: shouldFillTitle ? nextLabel.name : current.title,
+                        };
+                      });
                     }}
                   >
-                    <SelectTrigger aria-label="イベントラベル" className="w-full bg-card">
+                    <SelectTrigger aria-label={labelAria} className="w-full bg-card">
                       <SelectValue>
                         {selectedLabel ? (
                           <span className="flex items-center gap-2">
@@ -147,7 +166,7 @@ export function AddEventDialog({
                     variant="ghost"
                     size="icon-sm"
                     onClick={onManageLabels}
-                    aria-label="イベントラベルを管理"
+                    aria-label={isLife ? "生活ラベルを管理" : "イベントラベルを管理"}
                     className="shrink-0 text-muted-foreground hover:text-foreground"
                   >
                     <Settings2 />

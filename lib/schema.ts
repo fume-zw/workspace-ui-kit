@@ -69,11 +69,15 @@ export type Subtask = z.infer<typeof subtaskSchema>;
 export const SHIFT_LABEL_DISPLAY_TYPES = ["time_block", "all_day_marker"] as const;
 export type ShiftLabelDisplayType = (typeof SHIFT_LABEL_DISPLAY_TYPES)[number];
 
-/** 勤務ラベル（採血当番・当直・休み 等）のマスター。 */
+export const SHIFT_LABEL_CATEGORIES = ["work", "activity"] as const;
+export type ShiftLabelCategory = (typeof SHIFT_LABEL_CATEGORIES)[number];
+
+/** 勤務ラベル（採血当番・当直・休み 等）と定期（吹奏楽・スポーツ 等）のマスター。 */
 export const shiftLabelSchema = z.object({
   id: z.string(),
   name: z.string(),
   displayType: z.enum(SHIFT_LABEL_DISPLAY_TYPES),
+  category: z.enum(SHIFT_LABEL_CATEGORIES).default("work"),
   defaultStartTime: z.string().nullable(),
   defaultEndTime: z.string().nullable(),
   endsNextDay: z.boolean(),
@@ -93,10 +97,14 @@ export const eventLabelSchema = z.object({
 });
 export type EventLabel = z.infer<typeof eventLabelSchema>;
 
-export const SCHEDULE_ENTRY_KINDS = ["event", "shift"] as const;
+/** 生活用ラベル（睡眠・お風呂・食事 等）。イベントとは別枠。 */
+export const lifeLabelSchema = eventLabelSchema;
+export type LifeLabel = z.infer<typeof lifeLabelSchema>;
+
+export const SCHEDULE_ENTRY_KINDS = ["event", "shift", "life"] as const;
 export type ScheduleEntryKind = (typeof SCHEDULE_ENTRY_KINDS)[number];
 
-/** イベント予定・勤務予定 1 件。 */
+/** イベント予定・勤務／定期・生活 1 件。 */
 export const scheduleEntrySchema = z.object({
   id: z.string(),
   kind: z.enum(SCHEDULE_ENTRY_KINDS),
@@ -106,6 +114,7 @@ export const scheduleEntrySchema = z.object({
   allDay: z.boolean(),
   shiftLabelId: z.string().nullable(),
   eventLabelId: z.string().nullable().default(null),
+  lifeLabelId: z.string().nullable().default(null),
   timeOverridden: z.boolean(),
 });
 export type ScheduleEntry = z.infer<typeof scheduleEntrySchema>;

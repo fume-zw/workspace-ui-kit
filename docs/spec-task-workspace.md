@@ -119,6 +119,7 @@ Watch / iPhone / Windows / カレンダー連携の修正要件は [spec-apple-d
 | `20260611000007_tasks_recurring_link.sql` | `tasks` に定期タスク紐付け列 |
 | `20260611000008_event_labels.sql` | イベントラベル + `schedule_entries.event_label_id` |
 | `20260611000009_schedule_label_seeds.sql` | 勤務/イベントラベルの初期 seed + 新規ユーザー trigger |
+| `20260821000010_life_labels_and_shift_category.sql` | 生活ラベル + `schedule_entries.kind=life` + 勤務ラベル `category`（勤務/定期） |
 
 #### `task_statuses`
 

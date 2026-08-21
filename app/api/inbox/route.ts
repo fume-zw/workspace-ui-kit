@@ -1,5 +1,6 @@
 import {
   persistInboxEvent,
+  persistInboxLife,
   persistInboxSleep,
   persistInboxTask,
 } from "@/lib/inbox/persist";
@@ -115,7 +116,9 @@ export async function POST(request: Request) {
         ? await persistInboxTask(supabase, userId, parsed)
         : parsed.kind === "sleep"
           ? await persistInboxSleep(supabase, userId, parsed)
-          : await persistInboxEvent(supabase, userId, parsed);
+          : parsed.kind === "life"
+            ? await persistInboxLife(supabase, userId, parsed)
+            : await persistInboxEvent(supabase, userId, parsed);
     if ("error" in saved) {
       return json({ ok: false, speak: saved.speak }, saved.status);
     }

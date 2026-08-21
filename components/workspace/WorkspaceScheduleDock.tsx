@@ -5,14 +5,9 @@ import { addDays, format, startOfDay } from "date-fns";
 import { ja } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import {
-  type EventLabel,
-  type Project,
-  type ShiftLabel,
-  type Task,
-} from "@/lib/schema";
 import { UNASSIGNED_PROJECT_LABEL } from "@/lib/labels";
 import { type AgendaItem } from "@/lib/computed/schedule-agenda";
+import { scheduleKindBadge } from "@/lib/computed/schedule-kind";
 import {
   eventColorBlockClasses,
   shiftColorBlockClasses,
@@ -22,6 +17,13 @@ import { Button } from "@/components/ui/button";
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import {
+  type EventLabel,
+  type LifeLabel,
+  type Project,
+  type ShiftLabel,
+  type Task,
+} from "@/lib/schema";
 
 function taskProjectLabel(task: Task, projects: Project[]): string {
   if (!task.projectId) return UNASSIGNED_PROJECT_LABEL;
@@ -31,17 +33,20 @@ function taskProjectLabel(task: Task, projects: Project[]): string {
   );
 }
 
-const AGENDA_KIND_LABEL: Record<AgendaItem["kind"], string> = {
-  task: "タスク",
-  event: "イベント",
-  shift: "勤務",
-};
+function agendaKindLabel(
+  item: AgendaItem,
+  shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
+): string {
+  if (item.kind === "task") return "タスク";
+  return scheduleKindBadge(item.entry, shiftLabelsById);
+}
 
 /** 行左端の色アクセント。週ビューと同じラベル色ロジックを共有する。 */
 function agendaAccentClass(
   item: AgendaItem,
   shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
   eventLabelsById: ReadonlyMap<string, EventLabel>,
+  lifeLabelsById: ReadonlyMap<string, LifeLabel>,
 ): string {
   if (item.kind === "task") return "border-l-muted-foreground";
   if (item.kind === "shift") {
@@ -50,6 +55,12 @@ function agendaAccentClass(
         shiftLabelsById.get(item.entry.shiftLabelId)?.colorToken) ||
       "primary";
     return shiftColorBlockClasses(token).border;
+  }
+  if (item.kind === "life") {
+    const token = item.entry.lifeLabelId
+      ? lifeLabelsById.get(item.entry.lifeLabelId)?.colorToken
+      : null;
+    return eventColorBlockClasses(token).border;
   }
   const token = item.entry.eventLabelId
     ? eventLabelsById.get(item.entry.eventLabelId)?.colorToken
@@ -63,6 +74,7 @@ function agendaSubtitle(
   projects: Project[],
   shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
   eventLabelsById: ReadonlyMap<string, EventLabel>,
+  lifeLabelsById: ReadonlyMap<string, LifeLabel>,
 ): string | null {
   if (item.kind === "task") {
     return `${taskProjectLabel(item.task, projects)}・${item.task.statusLabel}`;
@@ -70,6 +82,11 @@ function agendaSubtitle(
   if (item.kind === "shift") {
     return item.entry.shiftLabelId
       ? (shiftLabelsById.get(item.entry.shiftLabelId)?.name ?? null)
+      : null;
+  }
+  if (item.kind === "life") {
+    return item.entry.lifeLabelId
+      ? (lifeLabelsById.get(item.entry.lifeLabelId)?.name ?? null)
       : null;
   }
   return item.entry.eventLabelId
@@ -238,6 +255,7 @@ type ScheduleDockAgendaProps = {
   projects: Project[];
   shiftLabelsById: ReadonlyMap<string, ShiftLabel>;
   eventLabelsById: ReadonlyMap<string, EventLabel>;
+  lifeLabelsById: ReadonlyMap<string, LifeLabel>;
   onSelectTask: (taskId: string) => void;
   onSelectEntry: (entryId: string) => void;
   /** モバイル閲覧など。クリック不可・ホバーなし。 */
@@ -254,6 +272,7 @@ export function ScheduleDockAgenda({
   projects,
   shiftLabelsById,
   eventLabelsById,
+  lifeLabelsById,
   onSelectTask,
   onSelectEntry,
   readOnly = false,
@@ -280,6 +299,7 @@ export function ScheduleDockAgenda({
             projects,
             shiftLabelsById,
             eventLabelsById,
+            lifeLabelsById,
           );
           const onClick = readOnly
             ? undefined
@@ -289,7 +309,12 @@ export function ScheduleDockAgenda({
 
           const rowClassName = cn(
             "flex w-full items-start gap-2 rounded-md border-l-4 bg-card px-2 py-2 text-left",
-            agendaAccentClass(item, shiftLabelsById, eventLabelsById),
+            agendaAccentClass(
+              item,
+              shiftLabelsById,
+              eventLabelsById,
+              lifeLabelsById,
+            ),
             !readOnly &&
               "transition-colors hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50",
           );
@@ -312,7 +337,7 @@ export function ScheduleDockAgenda({
                     ) : null}
                   </div>
                   <Badge variant="outline" size="xs" className="shrink-0">
-                    {AGENDA_KIND_LABEL[item.kind]}
+                    {agendaKindLabel(item, shiftLabelsById)}
                   </Badge>
                 </div>
               ) : (
@@ -335,7 +360,7 @@ export function ScheduleDockAgenda({
                     ) : null}
                   </div>
                   <Badge variant="outline" size="xs" className="shrink-0">
-                    {AGENDA_KIND_LABEL[item.kind]}
+                    {agendaKindLabel(item, shiftLabelsById)}
                   </Badge>
                 </button>
               )}
