@@ -21,6 +21,7 @@ import {
   getDateKeysForMode,
   layoutAllDayChips,
   layoutTimedBlocks,
+  mergeTimedLabelsById,
 } from "@/lib/computed/schedule-layout";
 import { scheduleKindBadge } from "@/lib/computed/schedule-kind";
 import { timeFromJstIso } from "@/lib/computed/schedule-datetime";
@@ -29,6 +30,7 @@ import {
   shiftColorBlockClasses,
 } from "@/lib/schedule-colors";
 import {
+  type ActivityLabel,
   type EventLabel,
   type LifeLabel,
   type ScheduleEntry,
@@ -43,6 +45,7 @@ import { cn } from "@/lib/utils";
 type ScheduleWeekViewProps = {
   entries: ScheduleEntry[];
   shiftLabels: ShiftLabel[];
+  activityLabels: ActivityLabel[];
   eventLabels: EventLabel[];
   lifeLabels: LifeLabel[];
   mode: ScheduleGridMode;
@@ -61,6 +64,7 @@ function blockTimeLabel(entry: ScheduleEntry): string {
 export function ScheduleWeekView({
   entries,
   shiftLabels,
+  activityLabels,
   eventLabels,
   lifeLabels,
   mode,
@@ -71,9 +75,17 @@ export function ScheduleWeekView({
   onSelectEntry,
 }: ScheduleWeekViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const timedLabelsById = useMemo(
+    () => mergeTimedLabelsById(shiftLabels, activityLabels),
+    [activityLabels, shiftLabels],
+  );
   const shiftLabelsById = useMemo(
     () => new Map(shiftLabels.map((label) => [label.id, label])),
     [shiftLabels],
+  );
+  const activityLabelsById = useMemo(
+    () => new Map(activityLabels.map((label) => [label.id, label])),
+    [activityLabels],
   );
   const eventLabelsById = useMemo(
     () => new Map(eventLabels.map((label) => [label.id, label])),
@@ -92,6 +104,13 @@ export function ScheduleWeekView({
             "primary",
         );
       }
+      if (entry.kind === "activity") {
+        return shiftColorBlockClasses(
+          (entry.activityLabelId &&
+            activityLabelsById.get(entry.activityLabelId)?.colorToken) ||
+            "primary",
+        );
+      }
       if (entry.kind === "life") {
         return eventColorBlockClasses(
           entry.lifeLabelId
@@ -105,7 +124,7 @@ export function ScheduleWeekView({
           : null,
       );
     },
-    [eventLabelsById, lifeLabelsById, shiftLabelsById],
+    [activityLabelsById, eventLabelsById, lifeLabelsById, shiftLabelsById],
   );
 
   const dateKeys = useMemo(
@@ -119,13 +138,13 @@ export function ScheduleWeekView({
   );
 
   const allDayByDate = useMemo(
-    () => layoutAllDayChips(entries, dateKeys, shiftLabelsById),
-    [dateKeys, entries, shiftLabelsById],
+    () => layoutAllDayChips(entries, dateKeys, timedLabelsById),
+    [dateKeys, entries, timedLabelsById],
   );
 
   const timedBlocks = useMemo(
-    () => layoutTimedBlocks(entries, dateKeys, shiftLabelsById),
-    [dateKeys, entries, shiftLabelsById],
+    () => layoutTimedBlocks(entries, dateKeys, timedLabelsById),
+    [dateKeys, entries, timedLabelsById],
   );
 
   const blocksByDate = useMemo(() => {
@@ -388,7 +407,7 @@ export function ScheduleWeekView({
                       ) : null}
                       {height >= 44 ? (
                         <Badge variant="secondary" className="mt-0.5" size="xs">
-                          {scheduleKindBadge(entry, shiftLabelsById)}
+                          {scheduleKindBadge(entry)}
                         </Badge>
                       ) : null}
                     </button>

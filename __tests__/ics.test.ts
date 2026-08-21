@@ -16,7 +16,6 @@ const shiftLabels: ShiftLabel[] = [
     colorToken: "primary",
     sortOrder: 1,
     archivedAt: null,
-    category: "work",
   },
 ];
 
@@ -40,6 +39,7 @@ const timedEvent: ScheduleEntry = {
   shiftLabelId: null,
   eventLabelId: "el1",
   lifeLabelId: null,
+  activityLabelId: null,
   timeOverridden: false,
 };
 
@@ -68,7 +68,7 @@ describe("buildIcsCalendar", () => {
     expect(ics).toContain("UID:event-e1@task-workspace");
     expect(ics).toContain("DTSTART;TZID=Asia/Tokyo:20260820T140000");
     expect(ics).toContain("DTEND;TZID=Asia/Tokyo:20260820T150000");
-    expect(ics).toContain("SUMMARY:会議 週報");
+    expect(ics).toContain("SUMMARY:週報");
     expect(ics).toContain("TRIGGER:-PT15M");
   });
 
@@ -83,7 +83,7 @@ describe("buildIcsCalendar", () => {
     expect(ics).toContain("UID:task-t1@task-workspace");
     expect(ics).toContain("DTSTART;VALUE=DATE:20260821");
     expect(ics).toContain("DTEND;VALUE=DATE:20260822");
-    expect(ics).toContain("SUMMARY:タスク 試薬発注");
+    expect(ics).toContain("SUMMARY:試薬発注");
     expect(ics).toContain("TRIGGER;RELATED=START:PT8H");
   });
 
@@ -100,5 +100,47 @@ describe("buildIcsCalendar", () => {
     });
     expect(ics).not.toContain("UID:task-t2@task-workspace");
     expect(ics).not.toContain("UID:task-t3@task-workspace");
+  });
+
+  it("sends only the title, without a label or タスク prefix", () => {
+    const activity: ScheduleEntry = {
+      id: "a1",
+      kind: "activity",
+      title: "吹奏楽",
+      startsAt: "2026-08-20T05:00:00.000Z",
+      endsAt: "2026-08-20T07:00:00.000Z",
+      allDay: false,
+      shiftLabelId: null,
+      eventLabelId: null,
+      lifeLabelId: null,
+      activityLabelId: "al1",
+      timeOverridden: false,
+    };
+    const ics = buildIcsCalendar({
+      tasks: [dueTask],
+      entries: [timedEvent, activity],
+      shiftLabels,
+      eventLabels,
+      activityLabels: [
+        {
+          id: "al1",
+          name: "吹奏楽",
+          displayType: "time_block",
+          defaultStartTime: "14:00",
+          defaultEndTime: "16:00",
+          endsNextDay: false,
+          colorToken: "primary",
+          sortOrder: 1,
+          archivedAt: null,
+        },
+      ],
+      now: NOW,
+    });
+    expect(ics).toContain("SUMMARY:週報");
+    expect(ics).not.toContain("SUMMARY:会議 週報");
+    expect(ics).toContain("SUMMARY:試薬発注");
+    expect(ics).not.toContain("SUMMARY:タスク 試薬発注");
+    expect(ics).toContain("SUMMARY:吹奏楽");
+    expect(ics).toContain("UID:activity-a1@task-workspace");
   });
 });

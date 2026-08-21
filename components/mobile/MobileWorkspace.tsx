@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { EditScheduleEntryDialog } from "@/components/workspace/EditScheduleEntryDialog";
 import {
+  type ActivityLabel,
   type EventLabel,
   type LifeLabel,
   type Project,
@@ -39,6 +40,7 @@ type MobileWorkspaceProps = {
   defaultStatusId: string;
   initialTasks: Task[];
   shiftLabels: ShiftLabel[];
+  activityLabels: ActivityLabel[];
   eventLabels: EventLabel[];
   lifeLabels: LifeLabel[];
   initialScheduleEntries: ScheduleEntry[];
@@ -59,6 +61,7 @@ export function MobileWorkspace({
   defaultStatusId,
   initialTasks,
   shiftLabels,
+  activityLabels,
   eventLabels,
   lifeLabels,
   initialScheduleEntries,
@@ -73,10 +76,6 @@ export function MobileWorkspace({
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
 
   const projectModels = useMemo(() => toProjects(projects), [projects]);
-  const shiftLabelsById = useMemo(
-    () => new Map(shiftLabels.map((label) => [label.id, label])),
-    [shiftLabels],
-  );
   const selectedTask = tasks.find((task) => task.id === selectedTaskId);
   const selectedEntry = scheduleEntries.find(
     (entry) => entry.id === selectedEntryId,
@@ -265,6 +264,7 @@ export function MobileWorkspace({
           projects={projectModels}
           scheduleEntries={scheduleEntries}
           shiftLabels={shiftLabels}
+          activityLabels={activityLabels}
           eventLabels={eventLabels}
           lifeLabels={lifeLabels}
           onOpenAddEvent={() => setScheduleView("add-event")}
@@ -292,7 +292,6 @@ export function MobileWorkspace({
         entry={selectedEntry}
         eventLabels={eventLabels}
         lifeLabels={lifeLabels}
-        shiftLabelsById={shiftLabelsById}
         open={Boolean(selectedEntry)}
         onOpenChange={(open) => {
           if (!open) setSelectedEntryId(null);

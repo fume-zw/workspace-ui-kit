@@ -133,6 +133,7 @@ export default async function MobilePage() {
       defaultStatusId={defaultStatusId}
       initialTasks={tasks}
       shiftLabels={scheduleData.shiftLabels}
+      activityLabels={scheduleData.activityLabels}
       eventLabels={scheduleData.eventLabels}
       lifeLabels={scheduleData.lifeLabels}
       initialScheduleEntries={scheduleData.scheduleEntries}

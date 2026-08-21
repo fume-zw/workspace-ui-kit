@@ -18,6 +18,7 @@ import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import {
+  type ActivityLabel,
   type EventLabel,
   type LifeLabel,
   type Project,
@@ -33,18 +34,16 @@ function taskProjectLabel(task: Task, projects: Project[]): string {
   );
 }
 
-function agendaKindLabel(
-  item: AgendaItem,
-  shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
-): string {
+function agendaKindLabel(item: AgendaItem): string {
   if (item.kind === "task") return "タスク";
-  return scheduleKindBadge(item.entry, shiftLabelsById);
+  return scheduleKindBadge(item.entry);
 }
 
 /** 行左端の色アクセント。週ビューと同じラベル色ロジックを共有する。 */
 function agendaAccentClass(
   item: AgendaItem,
   shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
+  activityLabelsById: ReadonlyMap<string, ActivityLabel>,
   eventLabelsById: ReadonlyMap<string, EventLabel>,
   lifeLabelsById: ReadonlyMap<string, LifeLabel>,
 ): string {
@@ -53,6 +52,13 @@ function agendaAccentClass(
     const token =
       (item.entry.shiftLabelId &&
         shiftLabelsById.get(item.entry.shiftLabelId)?.colorToken) ||
+      "primary";
+    return shiftColorBlockClasses(token).border;
+  }
+  if (item.kind === "activity") {
+    const token =
+      (item.entry.activityLabelId &&
+        activityLabelsById.get(item.entry.activityLabelId)?.colorToken) ||
       "primary";
     return shiftColorBlockClasses(token).border;
   }
@@ -73,6 +79,7 @@ function agendaSubtitle(
   item: AgendaItem,
   projects: Project[],
   shiftLabelsById: ReadonlyMap<string, ShiftLabel>,
+  activityLabelsById: ReadonlyMap<string, ActivityLabel>,
   eventLabelsById: ReadonlyMap<string, EventLabel>,
   lifeLabelsById: ReadonlyMap<string, LifeLabel>,
 ): string | null {
@@ -82,6 +89,11 @@ function agendaSubtitle(
   if (item.kind === "shift") {
     return item.entry.shiftLabelId
       ? (shiftLabelsById.get(item.entry.shiftLabelId)?.name ?? null)
+      : null;
+  }
+  if (item.kind === "activity") {
+    return item.entry.activityLabelId
+      ? (activityLabelsById.get(item.entry.activityLabelId)?.name ?? null)
       : null;
   }
   if (item.kind === "life") {
@@ -254,6 +266,7 @@ type ScheduleDockAgendaProps = {
   /** タスク補足のプロジェクト名表示用 */
   projects: Project[];
   shiftLabelsById: ReadonlyMap<string, ShiftLabel>;
+  activityLabelsById: ReadonlyMap<string, ActivityLabel>;
   eventLabelsById: ReadonlyMap<string, EventLabel>;
   lifeLabelsById: ReadonlyMap<string, LifeLabel>;
   onSelectTask: (taskId: string) => void;
@@ -271,6 +284,7 @@ export function ScheduleDockAgenda({
   items,
   projects,
   shiftLabelsById,
+  activityLabelsById,
   eventLabelsById,
   lifeLabelsById,
   onSelectTask,
@@ -298,6 +312,7 @@ export function ScheduleDockAgenda({
             item,
             projects,
             shiftLabelsById,
+            activityLabelsById,
             eventLabelsById,
             lifeLabelsById,
           );
@@ -312,6 +327,7 @@ export function ScheduleDockAgenda({
             agendaAccentClass(
               item,
               shiftLabelsById,
+              activityLabelsById,
               eventLabelsById,
               lifeLabelsById,
             ),
@@ -337,7 +353,7 @@ export function ScheduleDockAgenda({
                     ) : null}
                   </div>
                   <Badge variant="outline" size="xs" className="shrink-0">
-                    {agendaKindLabel(item, shiftLabelsById)}
+                    {agendaKindLabel(item)}
                   </Badge>
                 </div>
               ) : (
@@ -360,7 +376,7 @@ export function ScheduleDockAgenda({
                     ) : null}
                   </div>
                   <Badge variant="outline" size="xs" className="shrink-0">
-                    {agendaKindLabel(item, shiftLabelsById)}
+                    {agendaKindLabel(item)}
                   </Badge>
                 </button>
               )}

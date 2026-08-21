@@ -26,9 +26,7 @@ import {
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -38,8 +36,10 @@ type AddShiftDialogProps = {
   onOpenChange: (open: boolean) => void;
   labels: ShiftLabel[];
   onSave: (dateKeys: string[], labelId: string) => void | Promise<void>;
-  /** 「勤務ラベルを管理」から呼ぶ。ラベルが 0 件のときの導線にもなる。 */
+  /** 「ラベルを管理」から呼ぶ。ラベルが 0 件のときの導線にもなる。 */
   onManageLabels: () => void;
+  /** 定期は勤務と同じフォーム。保存先の kind は呼び出し側で分ける。 */
+  frame?: "shift" | "activity";
 };
 
 function toDateKey(date: Date): string {
@@ -60,6 +60,7 @@ export function AddShiftDialog({
   labels,
   onSave,
   onManageLabels,
+  frame = "shift",
 }: AddShiftDialogProps) {
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [labelId, setLabelId] = useState<string>("");
@@ -69,10 +70,15 @@ export function AddShiftDialog({
     setLabelId("");
   };
 
+  const isActivity = frame === "activity";
+  const heading = isActivity ? "定期スケジュールを追加" : "勤務予定を追加";
+  const labelAria = isActivity ? "定期ラベル" : "勤務ラベル";
+  const emptyMessage = isActivity
+    ? "定期のラベルがまだありません。吹奏楽やスポーツなどをラベルとして登録できます。"
+    : "勤務ラベルがまだありません。採血当番・当直などをラベルとして登録できます。";
+
   const selectedLabel = labels.find((label) => label.id === labelId);
   const canSave = selectedDates.length > 0 && selectedLabel !== undefined;
-  const workLabels = labels.filter((label) => label.category !== "activity");
-  const activityLabels = labels.filter((label) => label.category === "activity");
 
   const handleSave = async () => {
     if (!selectedLabel) return;
@@ -95,14 +101,12 @@ export function AddShiftDialog({
       <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
         <Card className="rounded-none border-0 shadow-none">
           <CardHeader>
-            <CardTitle>勤務・定期を追加</CardTitle>
+            <CardTitle>{heading}</CardTitle>
           </CardHeader>
           <CardContent>
             {labels.length === 0 ? (
               <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-8 text-center">
-                <p className="text-sm text-muted-foreground">
-                  勤務・定期のラベルがまだありません。採血当番・当直のほか、吹奏楽やスポーツもラベルとして登録できます。
-                </p>
+                <p className="text-sm text-muted-foreground">{emptyMessage}</p>
                 <Button type="button" variant="outline" onClick={onManageLabels}>
                   <Settings2 data-icon="inline-start" />
                   ラベルを管理
@@ -118,7 +122,7 @@ export function AddShiftDialog({
                         if (value) setLabelId(value);
                       }}
                     >
-                      <SelectTrigger aria-label="勤務・定期ラベル" className="w-full bg-card">
+                      <SelectTrigger aria-label={labelAria} className="w-full bg-card">
                         <SelectValue placeholder="ラベルを選択">
                           {selectedLabel && (
                             <span className="flex items-center gap-2">
@@ -138,50 +142,23 @@ export function AddShiftDialog({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent align="start">
-                        {workLabels.length > 0 ? (
-                          <SelectGroup>
-                            <SelectLabel>勤務</SelectLabel>
-                            {workLabels.map((label) => (
-                              <SelectItem key={label.id} value={label.id}>
-                                <span className="flex items-center gap-2">
-                                  <span
-                                    aria-hidden="true"
-                                    className={cn(
-                                      "size-3 rounded-full",
-                                      shiftColorDotClass(label.colorToken),
-                                    )}
-                                  />
-                                  {label.name}
-                                  <span className="text-muted-foreground">
-                                    {timeSummary(label)}
-                                  </span>
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        ) : null}
-                        {activityLabels.length > 0 ? (
-                          <SelectGroup>
-                            <SelectLabel>定期</SelectLabel>
-                            {activityLabels.map((label) => (
-                              <SelectItem key={label.id} value={label.id}>
-                                <span className="flex items-center gap-2">
-                                  <span
-                                    aria-hidden="true"
-                                    className={cn(
-                                      "size-3 rounded-full",
-                                      shiftColorDotClass(label.colorToken),
-                                    )}
-                                  />
-                                  {label.name}
-                                  <span className="text-muted-foreground">
-                                    {timeSummary(label)}
-                                  </span>
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        ) : null}
+                        {labels.map((label) => (
+                          <SelectItem key={label.id} value={label.id}>
+                            <span className="flex items-center gap-2">
+                              <span
+                                aria-hidden="true"
+                                className={cn(
+                                  "size-3 rounded-full",
+                                  shiftColorDotClass(label.colorToken),
+                                )}
+                              />
+                              {label.name}
+                              <span className="text-muted-foreground">
+                                {timeSummary(label)}
+                              </span>
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </InlineFieldRow>

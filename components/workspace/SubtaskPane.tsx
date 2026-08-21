@@ -3,6 +3,7 @@
 import { startOfDay } from "date-fns";
 
 import {
+  type ActivityLabel,
   type EventLabel,
   type LifeLabel,
   type Project,
@@ -22,6 +23,7 @@ type SubtaskPaneProps = {
   agendaItems: AgendaItem[];
   projects: Project[];
   shiftLabelsById: ReadonlyMap<string, ShiftLabel>;
+  activityLabelsById: ReadonlyMap<string, ActivityLabel>;
   eventLabelsById: ReadonlyMap<string, EventLabel>;
   lifeLabelsById: ReadonlyMap<string, LifeLabel>;
   onSelectTask: (taskId: string) => void;
@@ -36,6 +38,7 @@ export function SubtaskPane({
   agendaItems,
   projects,
   shiftLabelsById,
+  activityLabelsById,
   eventLabelsById,
   lifeLabelsById,
   onSelectTask,
@@ -77,6 +80,7 @@ export function SubtaskPane({
         items={agendaItems}
         projects={projects}
         shiftLabelsById={shiftLabelsById}
+        activityLabelsById={activityLabelsById}
         eventLabelsById={eventLabelsById}
         lifeLabelsById={lifeLabelsById}
         onSelectTask={onSelectTask}

@@ -109,6 +109,7 @@ export default async function Page() {
       initialTasks={data.tasks}
       initialSubtasks={data.subtasks}
       initialShiftLabels={scheduleData.shiftLabels}
+      initialActivityLabels={scheduleData.activityLabels}
       initialEventLabels={scheduleData.eventLabels}
       initialLifeLabels={scheduleData.lifeLabels}
       initialScheduleEntries={scheduleData.scheduleEntries}

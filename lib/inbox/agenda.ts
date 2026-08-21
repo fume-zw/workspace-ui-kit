@@ -1,4 +1,5 @@
 import { buildDayAgenda, type AgendaItem } from "@/lib/computed/schedule-agenda";
+import { mergeTimedLabelsById } from "@/lib/computed/schedule-layout";
 import { jstDateKey } from "@/lib/inbox/parse-utterance";
 import { fetchScheduleDataForUser } from "@/lib/schedule-db";
 import { fetchTasksForUser } from "@/lib/task-db";
@@ -68,14 +69,15 @@ export async function loadAgendaForUser(
   const tasksOnDay = taskResult.data.filter(
     (task) => task.dueDate?.startsWith(dateKey) && task.statusCode !== "done",
   );
-  const shiftLabelsById = new Map(
-    scheduleResult.data.shiftLabels.map((label) => [label.id, label]),
+  const timedLabelsById = mergeTimedLabelsById(
+    scheduleResult.data.shiftLabels,
+    scheduleResult.data.activityLabels,
   );
   const items = buildDayAgenda(
     dateKey,
     tasksOnDay,
     scheduleResult.data.scheduleEntries,
-    shiftLabelsById,
+    timedLabelsById,
   );
 
   return { data: formatAgendaSpeak(dateKey, items), error: null };

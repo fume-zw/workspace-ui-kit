@@ -12,7 +12,7 @@
 | Pane 1 | `PositionPane` → `ProjectPane` | `ProjectPane`（フラット `Project[]` + 未割当） | **実装済み** |
 | Pane 2 | `CandidateListPane` → `TaskListPane` | `TaskListPane`（選択プロジェクトのタスク一覧） | **実装済み** |
 | Pane 3 | `CandidateDashboardPane` → `TaskHubPane` | `TaskHubPane`（タスク詳細 + **下部サブタスクチェックリスト**） | **実装済み** |
-| Pane 4 | `CandidateDetailPane` → `SubtaskPane` | **`SubtaskPane` = スケジュール**（カレンダー + **統合アジェンダ**：期限タスク・イベント・勤務を時刻順） | **実装済み** |
+| Pane 4 | `CandidateDetailPane` → `SubtaskPane` | **`SubtaskPane` = スケジュール**（カレンダー + **統合アジェンダ**：期限タスク・イベント・生活・勤務予定・定期スケジュールを時刻順） | **実装済み** |
 
 > **注意:** コンポーネント名 `SubtaskPane` は歴史的経緯で残っているが、**責務はスケジュール**。サブタスク UI は Pane 3（`TaskHubPane`）内。
 

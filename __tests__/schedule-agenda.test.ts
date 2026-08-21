@@ -19,6 +19,7 @@ function makeEntry(
     shiftLabelId: null,
     eventLabelId: null,
     lifeLabelId: null,
+    activityLabelId: null,
     timeOverridden: false,
     ...overrides,
   };
@@ -95,7 +96,6 @@ describe("buildDayAgenda", () => {
       colorToken: "muted-foreground",
       sortOrder: 1,
       archivedAt: null,
-      category: "work",
     };
     const entries = [
       makeEntry({
@@ -133,5 +133,24 @@ describe("buildDayAgenda", () => {
     const items = buildDayAgenda("2026-07-06", [], entries, new Map());
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ kind: "life", timeLabel: "12:00–12:30" });
+  });
+
+  it("定期エントリは kind: activity で時刻順に並ぶ", () => {
+    const entries = [
+      makeEntry({
+        id: "act-brass",
+        kind: "activity",
+        title: "吹奏楽",
+        activityLabelId: "A1",
+        startsAt: toJstIso("2026-07-06", "18:00"),
+        endsAt: toJstIso("2026-07-06", "20:00"),
+      }),
+    ];
+    const items = buildDayAgenda("2026-07-06", [], entries, new Map());
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: "activity",
+      timeLabel: "18:00–20:00",
+    });
   });
 });
