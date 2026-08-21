@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   bedtimePatch,
-  findLatestSleep,
   findOpenSleep,
+  findUnclosedSleep,
   formatSleepWhen,
   shiftJstIsoByHours,
   speakSleepDuration,
@@ -19,6 +19,7 @@ const openSleep: SleepCandidate = {
   id: "s1",
   startsAt: BEDTIME,
   endsAt: shiftJstIsoByHours(BEDTIME, 8),
+  timeOverridden: false,
 };
 
 describe("sleep pairing", () => {
@@ -46,14 +47,15 @@ describe("sleep pairing", () => {
       id: "s1",
       startsAt: BEDTIME,
       endsAt: WAKE,
+      timeOverridden: true,
     };
     const nextBedtime = "2026-08-21T23:00:00+09:00";
     expect(findOpenSleep([closed], nextBedtime)).toBeNull();
     expect(bedtimePatch(null, nextBedtime).mode).toBe("insert");
   });
 
-  it("closes the latest sleep on おはよう", () => {
-    expect(findLatestSleep([openSleep], WAKE)?.id).toBe("s1");
+  it("closes the latest unclosed sleep on おはよう", () => {
+    expect(findUnclosedSleep([openSleep], WAKE)?.id).toBe("s1");
     expect(wakePatch(openSleep, WAKE)).toEqual({
       mode: "update",
       id: "s1",
@@ -62,11 +64,30 @@ describe("sleep pairing", () => {
     });
   });
 
-  it("estimates 8 hours ending now when おはよう has no matching おやすみ", () => {
-    expect(wakePatch(null, WAKE)).toEqual({
-      mode: "insert",
-      startsAt: "2026-08-20T23:00:00+09:00",
+  it("does not invent a sleep block when おはよう has no おやすみ", () => {
+    expect(findUnclosedSleep([], WAKE)).toBeNull();
+    expect(wakePatch(null, WAKE)).toEqual({ mode: "none" });
+  });
+
+  it("does not attach おはよう to a night that already ended", () => {
+    const closed: SleepCandidate = {
+      id: "s1",
+      startsAt: BEDTIME,
       endsAt: WAKE,
+      timeOverridden: true,
+    };
+    const laterWake = "2026-08-21T18:00:00+09:00";
+    expect(findUnclosedSleep([closed], laterWake)).toBeNull();
+  });
+
+  it("still closes a night that ran past the 8 hour placeholder", () => {
+    const lateWake = "2026-08-21T09:00:00+09:00";
+    expect(findUnclosedSleep([openSleep], lateWake)?.id).toBe("s1");
+    expect(wakePatch(openSleep, lateWake)).toEqual({
+      mode: "update",
+      id: "s1",
+      startsAt: BEDTIME,
+      endsAt: lateWake,
     });
   });
 

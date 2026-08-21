@@ -21,14 +21,16 @@ export type SleepCandidate = {
   id: string;
   startsAt: string;
   endsAt: string;
+  /** おはようで終了を確定したら true。未確定の仮ブロックだけ結び直す。 */
+  timeOverridden: boolean;
 };
 
-export type SleepRangePatch = {
-  mode: "insert" | "update";
-  id?: string;
-  startsAt: string;
-  endsAt: string;
-};
+export type SleepRangePatch =
+  | { mode: "insert"; startsAt: string; endsAt: string }
+  | { mode: "update"; id: string; startsAt: string; endsAt: string }
+  | { mode: "none" };
+
+export const SPEAK_NO_BEDTIME = "おやすみがありません";
 
 function pad2(value: number): string {
   return String(value).padStart(2, "0");
@@ -58,29 +60,40 @@ function withinLookback(startsAt: string, atIso: string): boolean {
   return start <= at && start >= since;
 }
 
-/** まだ起きていない睡眠（終了がコマンド時刻より後）。二重おやすみ用。 */
+function latestUnclosed(
+  entries: SleepCandidate[],
+  atIso: string,
+): SleepCandidate | null {
+  const matches = entries.filter(
+    (entry) => withinLookback(entry.startsAt, atIso) && !entry.timeOverridden,
+  );
+  matches.sort((a, b) => startMs(b.startsAt) - startMs(a.startsAt));
+  return matches[0] ?? null;
+}
+
+/** まだ起きていない睡眠。二重おやすみ用。 */
 export function findOpenSleep(
   entries: SleepCandidate[],
   atIso: string,
 ): SleepCandidate | null {
   const at = startMs(atIso);
   const matches = entries.filter((entry) => {
-    return withinLookback(entry.startsAt, atIso) && startMs(entry.endsAt) > at;
+    return (
+      withinLookback(entry.startsAt, atIso) &&
+      !entry.timeOverridden &&
+      startMs(entry.endsAt) > at
+    );
   });
   matches.sort((a, b) => startMs(b.startsAt) - startMs(a.startsAt));
   return matches[0] ?? null;
 }
 
-/** 直近の睡眠。おはようの結び先（補正も含む）。 */
-export function findLatestSleep(
+/** おはようの結び先。確定済みの夜には触らない。 */
+export function findUnclosedSleep(
   entries: SleepCandidate[],
   atIso: string,
 ): SleepCandidate | null {
-  const matches = entries.filter((entry) =>
-    withinLookback(entry.startsAt, atIso),
-  );
-  matches.sort((a, b) => startMs(b.startsAt) - startMs(a.startsAt));
-  return matches[0] ?? null;
+  return latestUnclosed(entries, atIso);
 }
 
 export function bedtimePatch(
@@ -103,22 +116,16 @@ export function wakePatch(
   existing: SleepCandidate | null,
   atIso: string,
 ): SleepRangePatch {
-  if (existing) {
-    const endsAt =
-      startMs(atIso) > startMs(existing.startsAt)
-        ? atIso
-        : shiftJstIsoByMs(existing.startsAt, 60 * 1000);
-    return {
-      mode: "update",
-      id: existing.id,
-      startsAt: existing.startsAt,
-      endsAt,
-    };
-  }
+  if (!existing) return { mode: "none" };
+  const endsAt =
+    startMs(atIso) > startMs(existing.startsAt)
+      ? atIso
+      : shiftJstIsoByMs(existing.startsAt, 60 * 1000);
   return {
-    mode: "insert",
-    startsAt: shiftJstIsoByHours(atIso, -SLEEP_PROVISIONAL_HOURS),
-    endsAt: atIso,
+    mode: "update",
+    id: existing.id,
+    startsAt: existing.startsAt,
+    endsAt,
   };
 }
 

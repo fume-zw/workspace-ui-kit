@@ -14,8 +14,9 @@ import {
   SLEEP_EVENT_TITLE,
   SLEEP_LOOKBACK_HOURS,
   bedtimePatch,
-  findLatestSleep,
   findOpenSleep,
+  findUnclosedSleep,
+  SPEAK_NO_BEDTIME,
   formatSleepWhen,
   shiftJstIsoByHours,
   speakSleepSuccess,
@@ -137,7 +138,7 @@ async function loadRecentSleepEntries(
   const sinceIso = shiftJstIsoByHours(atIso, -SLEEP_LOOKBACK_HOURS);
   const { data, error } = await supabase
     .from("schedule_entries")
-    .select("id, starts_at, ends_at")
+    .select("id, starts_at, ends_at, time_overridden")
     .eq("user_id", userId)
     .eq("kind", "event")
     .eq("title", SLEEP_EVENT_TITLE)
@@ -152,6 +153,7 @@ async function loadRecentSleepEntries(
     id: row.id as string,
     startsAt: row.starts_at as string,
     endsAt: row.ends_at as string,
+    timeOverridden: Boolean(row.time_overridden),
   }));
 }
 
@@ -165,11 +167,15 @@ export async function persistInboxSleep(
   const existing =
     parsed.action === "bedtime"
       ? findOpenSleep(recent, atIso)
-      : findLatestSleep(recent, atIso);
+      : findUnclosedSleep(recent, atIso);
   const patch =
     parsed.action === "bedtime"
       ? bedtimePatch(existing, atIso)
       : wakePatch(existing, atIso);
+
+  if (patch.mode === "none") {
+    return { error: true, speak: SPEAK_NO_BEDTIME, status: 200 };
+  }
 
   const eventLabelId = await ensureSleepEventLabel(supabase, userId);
 
@@ -179,6 +185,7 @@ export async function persistInboxSleep(
       endsAt: patch.endsAt,
       allDay: false,
       eventLabelId: eventLabelId ?? undefined,
+      timeOverridden: parsed.action === "wake",
     });
     if (result.error || !result.data) {
       return { error: true, speak: "保存に失敗しました", status: 500 };
@@ -201,6 +208,7 @@ export async function persistInboxSleep(
     endsAt: patch.endsAt,
     allDay: false,
     eventLabelId,
+    timeOverridden: false,
   });
 
   if (result.error || !result.data) {
