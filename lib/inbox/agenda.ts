@@ -21,8 +21,12 @@ function speakClock(hour: string, minute: string): string {
 export function speakTimeLabel(label: string): string {
   if (label === "終日" || label === "期限") return label;
   const span = label.match(/^(\d{2}):(\d{2})–(\d{2}):(\d{2})$/);
-  if (!span) return label;
-  return `${speakClock(span[1]!, span[2]!)}から${speakClock(span[3]!, span[4]!)}`;
+  if (span) {
+    return `${speakClock(span[1]!, span[2]!)}から${speakClock(span[3]!, span[4]!)}`;
+  }
+  const instant = label.match(/^(\d{2}):(\d{2})$/);
+  if (instant) return speakClock(instant[1]!, instant[2]!);
+  return label;
 }
 
 function itemTitle(item: AgendaItem): string {

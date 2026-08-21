@@ -35,6 +35,7 @@ type GlobalHeaderProps = {
   onOpenAddLife: () => void;
   onOpenAddShift: () => void;
   onOpenAddActivity: () => void;
+  onOpenAddRecord: () => void;
 };
 
 export function GlobalHeader({
@@ -51,6 +52,7 @@ export function GlobalHeader({
   onOpenAddLife,
   onOpenAddShift,
   onOpenAddActivity,
+  onOpenAddRecord,
 }: GlobalHeaderProps) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
@@ -143,6 +145,7 @@ export function GlobalHeader({
               <DropdownMenuItem onSelect={onOpenAddActivity}>
                 定期スケジュール
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onOpenAddRecord}>記録</DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>

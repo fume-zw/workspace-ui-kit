@@ -60,7 +60,7 @@ const DEFAULT_COPY: EventLabelSettingsCopy = {
 export const LIFE_LABEL_SETTINGS_COPY: EventLabelSettingsCopy = {
   title: "生活ラベルの管理",
   description:
-    "睡眠・お風呂・食事など、生活の種類を登録します。名前と色は貼り済みの予定にも反映されます。",
+    "お風呂・食事など、生活の種類を登録します。名前と色は貼り済みの予定にも反映されます。",
   empty: "生活ラベルがまだありません。下のフォームから追加してください。",
   placeholder: "例: お風呂",
   archiveTitle: "生活ラベルをアーカイブしますか？",

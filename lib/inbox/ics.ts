@@ -136,6 +136,7 @@ export function buildIcsCalendar(input: IcsInput): string {
   const vevents: string[] = [];
 
   for (const entry of input.entries) {
+    if (entry.kind === "record") continue;
     const startKey = dateKeyFromJstIso(entry.startsAt);
     const endKey = dateKeyFromJstIso(entry.endsAt);
     if (!overlapsWindow(startKey, endKey, windowStart, windowEnd)) continue;

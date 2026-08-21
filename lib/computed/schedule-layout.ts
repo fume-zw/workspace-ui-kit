@@ -85,12 +85,18 @@ function compareDateKeys(a: string, b: string): number {
   return a.localeCompare(b);
 }
 
+/** 出勤・帰宅など、指定時刻のバー。開始＝終了の記録。 */
+export function isInstantRecord(entry: ScheduleEntry): boolean {
+  return entry.kind === "record" && entry.startsAt === entry.endsAt;
+}
+
 /** 指定日の timed 区間。終日・日跨ぎは日ごとに切り出す。 */
 export function getTimedSegmentOnDay(
   entry: ScheduleEntry,
   dateKey: string,
 ): { startMinutes: number; endMinutes: number } | null {
   if (entry.allDay) return null;
+  if (isInstantRecord(entry)) return null;
 
   const startKey = dateKeyFromJstIso(entry.startsAt);
   const endKey = dateKeyFromJstIso(entry.endsAt);
@@ -121,10 +127,37 @@ export function isAllDayGridEntry(
   entry: ScheduleEntry,
   timedLabelsById: ReadonlyMap<string, TimedScheduleLabel>,
 ): boolean {
+  if (isInstantRecord(entry)) return false;
   if (entry.allDay) return true;
   const labelId = entry.shiftLabelId ?? entry.activityLabelId;
   if (!labelId) return false;
   return timedLabelsById.get(labelId)?.displayType === "all_day_marker";
+}
+
+export type TimeMarkerChip = {
+  entry: ScheduleEntry;
+  dateKey: string;
+  minutes: number;
+};
+
+/** 週グリッドに横バーで載せる記録。 */
+export function layoutTimeMarkers(
+  entries: ScheduleEntry[],
+  dateKeys: string[],
+): TimeMarkerChip[] {
+  const dateSet = new Set(dateKeys);
+  const markers: TimeMarkerChip[] = [];
+  for (const entry of entries) {
+    if (!isInstantRecord(entry)) continue;
+    const dateKey = dateKeyFromJstIso(entry.startsAt);
+    if (!dateSet.has(dateKey)) continue;
+    markers.push({
+      entry,
+      dateKey,
+      minutes: minutesFromJstIso(entry.startsAt),
+    });
+  }
+  return markers;
 }
 
 /** 終日帯に載せるエントリを日付キーごとに返す。 */
@@ -226,6 +259,7 @@ export function layoutTimedBlocks(
 
     for (const entry of entries) {
       if (isAllDayGridEntry(entry, timedLabelsById)) continue;
+      if (isInstantRecord(entry)) continue;
       const segment = getTimedSegmentOnDay(entry, dateKey);
       if (!segment) continue;
       segments.push({
@@ -239,6 +273,7 @@ export function layoutTimedBlocks(
 
     for (const entry of entries) {
       if (isAllDayGridEntry(entry, timedLabelsById)) continue;
+      if (isInstantRecord(entry)) continue;
       const segment = getTimedSegmentOnDay(entry, dateKey);
       if (!segment) continue;
       const placement = columns.get(entry.id);

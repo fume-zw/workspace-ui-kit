@@ -22,6 +22,7 @@ import {
   type EventLabel,
   type LifeLabel,
   type Project,
+  type RecordLabel,
   type ShiftLabel,
   type Task,
 } from "@/lib/schema";
@@ -46,6 +47,7 @@ function agendaAccentClass(
   activityLabelsById: ReadonlyMap<string, ActivityLabel>,
   eventLabelsById: ReadonlyMap<string, EventLabel>,
   lifeLabelsById: ReadonlyMap<string, LifeLabel>,
+  recordLabelsById: ReadonlyMap<string, RecordLabel>,
 ): string {
   if (item.kind === "task") return "border-l-muted-foreground";
   if (item.kind === "shift") {
@@ -59,6 +61,13 @@ function agendaAccentClass(
     const token =
       (item.entry.activityLabelId &&
         activityLabelsById.get(item.entry.activityLabelId)?.colorToken) ||
+      "primary";
+    return shiftColorBlockClasses(token).border;
+  }
+  if (item.kind === "record") {
+    const token =
+      (item.entry.recordLabelId &&
+        recordLabelsById.get(item.entry.recordLabelId)?.colorToken) ||
       "primary";
     return shiftColorBlockClasses(token).border;
   }
@@ -95,6 +104,9 @@ function agendaSubtitle(
     return item.entry.activityLabelId
       ? (activityLabelsById.get(item.entry.activityLabelId)?.name ?? null)
       : null;
+  }
+  if (item.kind === "record") {
+    return null;
   }
   if (item.kind === "life") {
     return item.entry.lifeLabelId
@@ -269,6 +281,7 @@ type ScheduleDockAgendaProps = {
   activityLabelsById: ReadonlyMap<string, ActivityLabel>;
   eventLabelsById: ReadonlyMap<string, EventLabel>;
   lifeLabelsById: ReadonlyMap<string, LifeLabel>;
+  recordLabelsById: ReadonlyMap<string, RecordLabel>;
   onSelectTask: (taskId: string) => void;
   onSelectEntry: (entryId: string) => void;
   /** モバイル閲覧など。クリック不可・ホバーなし。 */
@@ -287,6 +300,7 @@ export function ScheduleDockAgenda({
   activityLabelsById,
   eventLabelsById,
   lifeLabelsById,
+  recordLabelsById,
   onSelectTask,
   onSelectEntry,
   readOnly = false,
@@ -307,7 +321,12 @@ export function ScheduleDockAgenda({
               ? `task:${item.task.id}`
               : `${item.kind}:${item.entry.id}`;
           const title =
-            item.kind === "task" ? item.task.title : item.entry.title;
+            item.kind === "task"
+              ? item.task.title
+              : item.kind === "record" && item.entry.recordLabelId
+                ? (recordLabelsById.get(item.entry.recordLabelId)?.name ??
+                  item.entry.title)
+                : item.entry.title;
           const subtitle = agendaSubtitle(
             item,
             projects,
@@ -330,6 +349,7 @@ export function ScheduleDockAgenda({
               activityLabelsById,
               eventLabelsById,
               lifeLabelsById,
+              recordLabelsById,
             ),
             !readOnly &&
               "transition-colors hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50",

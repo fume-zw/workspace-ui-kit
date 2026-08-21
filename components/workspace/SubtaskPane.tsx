@@ -7,6 +7,7 @@ import {
   type EventLabel,
   type LifeLabel,
   type Project,
+  type RecordLabel,
   type ShiftLabel,
 } from "@/lib/schema";
 import { type AgendaItem } from "@/lib/computed/schedule-agenda";
@@ -26,6 +27,7 @@ type SubtaskPaneProps = {
   activityLabelsById: ReadonlyMap<string, ActivityLabel>;
   eventLabelsById: ReadonlyMap<string, EventLabel>;
   lifeLabelsById: ReadonlyMap<string, LifeLabel>;
+  recordLabelsById: ReadonlyMap<string, RecordLabel>;
   onSelectTask: (taskId: string) => void;
   onSelectEntry: (entryId: string) => void;
 };
@@ -41,6 +43,7 @@ export function SubtaskPane({
   activityLabelsById,
   eventLabelsById,
   lifeLabelsById,
+  recordLabelsById,
   onSelectTask,
   onSelectEntry,
 }: SubtaskPaneProps) {
@@ -83,6 +86,7 @@ export function SubtaskPane({
         activityLabelsById={activityLabelsById}
         eventLabelsById={eventLabelsById}
         lifeLabelsById={lifeLabelsById}
+        recordLabelsById={recordLabelsById}
         onSelectTask={onSelectTask}
         onSelectEntry={onSelectEntry}
       />

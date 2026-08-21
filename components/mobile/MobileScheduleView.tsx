@@ -15,6 +15,7 @@ import {
   type EventLabel,
   type LifeLabel,
   type Project,
+  type RecordLabel,
   type ScheduleEntry,
   type ShiftLabel,
   type Task,
@@ -31,6 +32,7 @@ type MobileScheduleViewProps = {
   activityLabels: ActivityLabel[];
   eventLabels: EventLabel[];
   lifeLabels: LifeLabel[];
+  recordLabels: RecordLabel[];
   onOpenAddEvent: () => void;
   onOpenAddLife: () => void;
   onSelectTask: (taskId: string) => void;
@@ -47,6 +49,7 @@ export function MobileScheduleView({
   activityLabels,
   eventLabels,
   lifeLabels,
+  recordLabels,
   onOpenAddEvent,
   onOpenAddLife,
   onSelectTask,
@@ -98,6 +101,11 @@ export function MobileScheduleView({
     [lifeLabels],
   );
 
+  const recordLabelsById = useMemo(
+    () => new Map(recordLabels.map((label) => [label.id, label])),
+    [recordLabels],
+  );
+
   const agendaItems = useMemo(
     () =>
       buildDayAgenda(
@@ -130,6 +138,7 @@ export function MobileScheduleView({
           activityLabelsById={activityLabelsById}
           eventLabelsById={eventLabelsById}
           lifeLabelsById={lifeLabelsById}
+          recordLabelsById={recordLabelsById}
           onSelectTask={onSelectTask}
           onSelectEntry={onSelectEntry}
           layout="stack"
@@ -138,7 +147,7 @@ export function MobileScheduleView({
 
       <p className="text-center text-xs text-muted-foreground">
         <CalendarDays className="mr-1 inline size-3.5 align-text-bottom" />
-        予定をタップして時刻を直せます。勤務予定と定期スケジュールの一括追加は PC からです。
+        予定をタップして時刻を直せます。勤務・定期の一括と出勤・帰宅の記録は PC からです。
       </p>
 
       <div className="flex flex-col gap-2">

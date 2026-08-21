@@ -18,6 +18,7 @@ import {
   type EventLabel,
   type LifeLabel,
   type Project,
+  type RecordLabel,
   type ScheduleEntry,
   type ShiftLabel,
   type Task,
@@ -43,6 +44,7 @@ type MobileWorkspaceProps = {
   activityLabels: ActivityLabel[];
   eventLabels: EventLabel[];
   lifeLabels: LifeLabel[];
+  recordLabels: RecordLabel[];
   initialScheduleEntries: ScheduleEntry[];
 };
 
@@ -64,6 +66,7 @@ export function MobileWorkspace({
   activityLabels,
   eventLabels,
   lifeLabels,
+  recordLabels,
   initialScheduleEntries,
 }: MobileWorkspaceProps) {
   const supabase = useMemo(() => createClient(), []);
@@ -153,6 +156,7 @@ export function MobileWorkspace({
         | "allDay"
         | "eventLabelId"
         | "lifeLabelId"
+        | "recordLabelId"
         | "timeOverridden"
       >
     >,
@@ -267,6 +271,7 @@ export function MobileWorkspace({
           activityLabels={activityLabels}
           eventLabels={eventLabels}
           lifeLabels={lifeLabels}
+          recordLabels={recordLabels}
           onOpenAddEvent={() => setScheduleView("add-event")}
           onOpenAddLife={() => setScheduleView("add-life")}
           onSelectTask={setSelectedTaskId}
@@ -292,6 +297,7 @@ export function MobileWorkspace({
         entry={selectedEntry}
         eventLabels={eventLabels}
         lifeLabels={lifeLabels}
+        recordLabels={recordLabels}
         open={Boolean(selectedEntry)}
         onOpenChange={(open) => {
           if (!open) setSelectedEntryId(null);

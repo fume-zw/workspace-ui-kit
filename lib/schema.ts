@@ -101,14 +101,38 @@ export const eventLabelSchema = z.object({
 });
 export type EventLabel = z.infer<typeof eventLabelSchema>;
 
-/** 生活用ラベル（睡眠・お風呂・食事 等）。イベントとは別枠。 */
+/** 生活用ラベル（お風呂・食事 等）。睡眠は記録枠。 */
 export const lifeLabelSchema = eventLabelSchema;
 export type LifeLabel = z.infer<typeof lifeLabelSchema>;
 
-export const SCHEDULE_ENTRY_KINDS = ["event", "shift", "life", "activity"] as const;
+export const RECORD_LABEL_CODES = ["sleep", "clock_in", "clock_out"] as const;
+export type RecordLabelCode = (typeof RECORD_LABEL_CODES)[number];
+
+export const RECORD_LABEL_DISPLAY_TYPES = ["span", "marker"] as const;
+export type RecordLabelDisplayType = (typeof RECORD_LABEL_DISPLAY_TYPES)[number];
+
+/** 記録ラベル（睡眠・出勤・帰宅）。タイトルなし。マーカーは指定時刻のバー。 */
+export const recordLabelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  code: z.enum(RECORD_LABEL_CODES),
+  displayType: z.enum(RECORD_LABEL_DISPLAY_TYPES),
+  colorToken: z.string(),
+  sortOrder: z.number(),
+  archivedAt: z.string().nullable(),
+});
+export type RecordLabel = z.infer<typeof recordLabelSchema>;
+
+export const SCHEDULE_ENTRY_KINDS = [
+  "event",
+  "shift",
+  "life",
+  "activity",
+  "record",
+] as const;
 export type ScheduleEntryKind = (typeof SCHEDULE_ENTRY_KINDS)[number];
 
-/** イベント予定・勤務・定期・生活 1 件。 */
+/** イベント予定・勤務・定期・生活・記録 1 件。 */
 export const scheduleEntrySchema = z.object({
   id: z.string(),
   kind: z.enum(SCHEDULE_ENTRY_KINDS),
@@ -120,6 +144,7 @@ export const scheduleEntrySchema = z.object({
   eventLabelId: z.string().nullable().default(null),
   lifeLabelId: z.string().nullable().default(null),
   activityLabelId: z.string().nullable().default(null),
+  recordLabelId: z.string().nullable().default(null),
   timeOverridden: z.boolean(),
 });
 export type ScheduleEntry = z.infer<typeof scheduleEntrySchema>;

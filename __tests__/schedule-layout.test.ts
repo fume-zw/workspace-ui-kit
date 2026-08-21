@@ -6,6 +6,7 @@ import {
   getTimedSegmentOnDay,
   getWeekDateKeys,
   layoutTimedBlocks,
+  layoutTimeMarkers,
 } from "@/lib/computed/schedule-layout";
 import { type ScheduleEntry } from "@/lib/schema";
 
@@ -20,6 +21,7 @@ function makeEntry(
     eventLabelId: null,
     lifeLabelId: null,
     activityLabelId: null,
+    recordLabelId: null,
     timeOverridden: false,
     ...overrides,
   };
@@ -89,5 +91,55 @@ describe("layoutTimedBlocks", () => {
     expect(blocks).toHaveLength(1);
     expect(blocks[0]?.dateKey).toBe("2026-07-07");
     expect(blocks[0]?.column).toBe(0);
+  });
+
+  it("出勤・帰宅の瞬間記録は時間ブロックに入れない", () => {
+    const dateKeys = getWeekDateKeys(new Date("2026-07-06"));
+    const instant = toJstIso("2026-07-07", "08:30");
+    const entries = [
+      makeEntry({
+        id: "clock-in",
+        kind: "record",
+        title: "出勤",
+        recordLabelId: "R1",
+        startsAt: instant,
+        endsAt: instant,
+      }),
+    ];
+    expect(layoutTimedBlocks(entries, dateKeys, new Map())).toEqual([]);
+    expect(getTimedSegmentOnDay(entries[0]!, "2026-07-07")).toBeNull();
+  });
+});
+
+describe("layoutTimeMarkers", () => {
+  it("指定時刻のバー位置を分で返す", () => {
+    const dateKeys = getWeekDateKeys(new Date("2026-07-06"));
+    const instant = toJstIso("2026-07-07", "08:30");
+    const markers = layoutTimeMarkers(
+      [
+        makeEntry({
+          id: "clock-in",
+          kind: "record",
+          title: "出勤",
+          recordLabelId: "R1",
+          startsAt: instant,
+          endsAt: instant,
+        }),
+        makeEntry({
+          id: "sleep",
+          kind: "record",
+          title: "睡眠",
+          recordLabelId: "R2",
+          startsAt: toJstIso("2026-07-07", "23:00"),
+          endsAt: toJstIso("2026-07-08", "07:00"),
+        }),
+      ],
+      dateKeys,
+    );
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({
+      dateKey: "2026-07-07",
+      minutes: 8 * 60 + 30,
+    });
   });
 });

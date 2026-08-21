@@ -26,6 +26,7 @@ import {
 } from "@/lib/inbox/sleep";
 import {
   insertLifeLabel,
+  insertRecordLabel,
   insertScheduleEntry,
   updateScheduleEntry,
 } from "@/lib/schedule-db";
@@ -133,18 +134,49 @@ async function ensureLifeLabel(
   return created.data?.id ?? null;
 }
 
+async function ensureRecordLabel(
+  supabase: SupabaseClient,
+  userId: string,
+  name: string,
+  code: "sleep",
+  displayType: "span",
+  colorToken: string,
+): Promise<string | null> {
+  const existing = await supabase
+    .from("record_labels")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("code", code)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (existing.data?.id) return existing.data.id as string;
+
+  const created = await insertRecordLabel(supabase, userId, {
+    name,
+    code,
+    displayType,
+    colorToken,
+    sortOrder: 1,
+  });
+
+  return created.data?.id ?? null;
+}
+
 async function loadRecentSleepEntries(
   supabase: SupabaseClient,
   userId: string,
   atIso: string,
+  recordLabelId: string | null,
 ): Promise<SleepCandidate[]> {
+  if (!recordLabelId) return [];
   const sinceIso = shiftJstIsoByHours(atIso, -SLEEP_LOOKBACK_HOURS);
   const { data, error } = await supabase
     .from("schedule_entries")
     .select("id, starts_at, ends_at, time_overridden")
     .eq("user_id", userId)
-    .eq("kind", "life")
-    .eq("title", SLEEP_EVENT_TITLE)
+    .eq("kind", "record")
+    .eq("record_label_id", recordLabelId)
     .eq("all_day", false)
     .gte("starts_at", sinceIso)
     .lte("starts_at", atIso)
@@ -166,7 +198,20 @@ export async function persistInboxSleep(
   parsed: ParsedInboxSleep,
 ): Promise<PersistOk | PersistErr> {
   const atIso = toJstIso(parsed.dateKey, parsed.startTime);
-  const recent = await loadRecentSleepEntries(supabase, userId, atIso);
+  const recordLabelId = await ensureRecordLabel(
+    supabase,
+    userId,
+    SLEEP_EVENT_TITLE,
+    "sleep",
+    "span",
+    "schedule-indigo",
+  );
+  const recent = await loadRecentSleepEntries(
+    supabase,
+    userId,
+    atIso,
+    recordLabelId,
+  );
   const existing =
     parsed.action === "bedtime"
       ? findOpenSleep(recent, atIso)
@@ -180,19 +225,12 @@ export async function persistInboxSleep(
     return { error: true, speak: SPEAK_NO_BEDTIME, status: 200 };
   }
 
-  const lifeLabelId = await ensureLifeLabel(
-    supabase,
-    userId,
-    SLEEP_EVENT_TITLE,
-    "schedule-indigo",
-  );
-
   if (patch.mode === "update" && patch.id) {
     const result = await updateScheduleEntry(supabase, patch.id, {
       startsAt: patch.startsAt,
       endsAt: patch.endsAt,
       allDay: false,
-      lifeLabelId: lifeLabelId ?? undefined,
+      recordLabelId: recordLabelId ?? undefined,
       timeOverridden: parsed.action === "wake",
     });
     if (result.error || !result.data) {
@@ -210,12 +248,12 @@ export async function persistInboxSleep(
   }
 
   const result = await insertScheduleEntry(supabase, userId, {
-    kind: "life",
+    kind: "record",
     title: SLEEP_EVENT_TITLE,
     startsAt: patch.startsAt,
     endsAt: patch.endsAt,
     allDay: false,
-    lifeLabelId,
+    recordLabelId,
     timeOverridden: false,
   });
 
