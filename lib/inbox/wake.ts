@@ -25,29 +25,54 @@ export type WakePatternLabel =
   | "PM休"
   | "全休";
 
+export type WakeClock = {
+  hour: number;
+  minute: number;
+};
+
 export type WakePlan = {
   pattern: WakePattern;
   patternLabel: WakePatternLabel;
   skip: boolean;
-  alarmHour: number | null;
-  alarmMinute: number | null;
-  alarmName: string;
+  alarmCount: number;
+  alarm1Hour: number | null;
+  alarm1Minute: number | null;
+  alarm2Hour: number | null;
+  alarm2Minute: number | null;
+  alarm3Hour: number | null;
+  alarm3Minute: number | null;
+  alarmName1: string | null;
+  alarmName2: string | null;
+  alarmName3: string | null;
   speak: string;
   shiftName: string | null;
   shiftStart: string | null;
   dateKey: string;
 };
 
-/** パターンごとの既定アラーム。④⑤は朝のアラームなし。 */
-export const WAKE_PATTERN_ALARMS: Record<
-  WakePattern,
-  { hour: number; minute: number } | null
-> = {
-  1: { hour: 4, minute: 30 },
-  2: { hour: 5, minute: 30 },
-  3: { hour: 5, minute: 0 },
-  4: null,
-  5: null,
+/** パターンごとの3本。⑤だけ空。 */
+export const WAKE_PATTERN_ALARMS: Record<WakePattern, WakeClock[]> = {
+  1: [
+    { hour: 4, minute: 50 },
+    { hour: 5, minute: 0 },
+    { hour: 5, minute: 10 },
+  ],
+  2: [
+    { hour: 5, minute: 50 },
+    { hour: 6, minute: 0 },
+    { hour: 6, minute: 10 },
+  ],
+  3: [
+    { hour: 5, minute: 40 },
+    { hour: 5, minute: 50 },
+    { hour: 6, minute: 0 },
+  ],
+  4: [
+    { hour: 6, minute: 50 },
+    { hour: 7, minute: 0 },
+    { hour: 7, minute: 10 },
+  ],
+  5: [],
 };
 
 function speakClock(hour: number, minute: number): string {
@@ -195,27 +220,56 @@ function classifyDay(
   };
 }
 
+function speakAlarms(alarms: WakeClock[]): string {
+  return alarms.map((alarm) => speakClock(alarm.hour, alarm.minute)).join("、");
+}
+
 function speakFor(
-  pattern: WakePattern,
   patternLabel: WakePatternLabel,
   day: string,
   shiftNameValue: string | null,
-  alarm: { hour: number; minute: number } | null,
+  alarms: WakeClock[],
 ): string {
   const work = shiftNameValue ?? patternLabel;
-  if (pattern === 5) {
+  if (alarms.length === 0) {
     return `${day}は${work}です。アラームはかけません`;
   }
-  if (pattern === 4) {
-    if (patternLabel === "なし") {
-      return `${day}の勤務はありません。朝のアラームはかけません`;
-    }
-    return `${day}は${work}です。朝のアラームはかけません`;
+  const times = `${speakAlarms(alarms)}のアラームです`;
+  if (patternLabel === "なし") {
+    return `${day}の勤務はありません。${times}`;
   }
-  if (!alarm) {
-    return `${day}は${work}です。アラームはかけません`;
-  }
-  return `${day}は${work}です。${speakClock(alarm.hour, alarm.minute)}のアラームです`;
+  return `${day}は${work}です。${times}`;
+}
+
+function alarmFields(
+  alarms: WakeClock[],
+): Pick<
+  WakePlan,
+  | "skip"
+  | "alarmCount"
+  | "alarm1Hour"
+  | "alarm1Minute"
+  | "alarm2Hour"
+  | "alarm2Minute"
+  | "alarm3Hour"
+  | "alarm3Minute"
+  | "alarmName1"
+  | "alarmName2"
+  | "alarmName3"
+> {
+  return {
+    skip: alarms.length === 0,
+    alarmCount: alarms.length,
+    alarm1Hour: alarms[0]?.hour ?? null,
+    alarm1Minute: alarms[0]?.minute ?? null,
+    alarm2Hour: alarms[1]?.hour ?? null,
+    alarm2Minute: alarms[1]?.minute ?? null,
+    alarm3Hour: alarms[2]?.hour ?? null,
+    alarm3Minute: alarms[2]?.minute ?? null,
+    alarmName1: alarms[0] ? "勤務1" : null,
+    alarmName2: alarms[1] ? "勤務2" : null,
+    alarmName3: alarms[2] ? "勤務3" : null,
+  };
 }
 
 export function planWakeAlarm(args: {
@@ -233,23 +287,13 @@ export function planWakeAlarm(args: {
     coversDate(entry, dateKey, shiftLabelsById),
   );
   const classified = classifyDay(onDay, shiftLabelsById);
-  const alarm = WAKE_PATTERN_ALARMS[classified.pattern];
+  const alarms = WAKE_PATTERN_ALARMS[classified.pattern];
   const day = dayWord(dateKey, today);
-  const skip = alarm === null;
   return {
     pattern: classified.pattern,
     patternLabel: classified.patternLabel,
-    skip,
-    alarmHour: alarm?.hour ?? null,
-    alarmMinute: alarm?.minute ?? null,
-    alarmName: "勤務",
-    speak: speakFor(
-      classified.pattern,
-      classified.patternLabel,
-      day,
-      classified.shiftName,
-      alarm,
-    ),
+    ...alarmFields(alarms),
+    speak: speakFor(classified.patternLabel, day, classified.shiftName, alarms),
     shiftName: classified.shiftName,
     shiftStart: classified.shiftStart,
     dateKey,

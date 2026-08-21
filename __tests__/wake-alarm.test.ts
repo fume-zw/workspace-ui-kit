@@ -101,7 +101,7 @@ const NIGHT = new Date("2026-08-20T13:00:00.000Z"); // 22:00 JST → 翌日を�
 const LABELS = [six, seven, kessai, pmOff, fullOff, tocho];
 
 describe("planWakeAlarm patterns", () => {
-  it("① 6時 → pattern 1, 4:30", () => {
+  it("① 6時 → 4:50, 5:00, 5:10", () => {
     const plan = planWakeAlarm({
       now: NIGHT,
       shiftLabels: LABELS,
@@ -111,13 +111,20 @@ describe("planWakeAlarm patterns", () => {
       pattern: 1,
       patternLabel: "6時",
       skip: false,
-      alarmHour: 4,
-      alarmMinute: 30,
+      alarmCount: 3,
+      alarm1Hour: 4,
+      alarm1Minute: 50,
+      alarm2Hour: 5,
+      alarm2Minute: 0,
+      alarm3Hour: 5,
+      alarm3Minute: 10,
     });
-    expect(plan.speak).toBe("明日は6時です。4時30分のアラームです");
+    expect(plan.speak).toBe(
+      "明日は6時です。4時50分、5時、5時10分のアラームです",
+    );
   });
 
-  it("② 7時 → pattern 2, 5:30", () => {
+  it("② 7時 → 5:50, 6:00, 6:10", () => {
     const plan = planWakeAlarm({
       now: NIGHT,
       shiftLabels: LABELS,
@@ -125,12 +132,17 @@ describe("planWakeAlarm patterns", () => {
     });
     expect(plan).toMatchObject({
       pattern: 2,
-      patternLabel: "7時",
       skip: false,
-      alarmHour: 5,
-      alarmMinute: 30,
+      alarm1Hour: 5,
+      alarm1Minute: 50,
+      alarm2Hour: 6,
+      alarm2Minute: 0,
+      alarm3Hour: 6,
+      alarm3Minute: 10,
     });
-    expect(plan.speak).toBe("明日は7時です。5時30分のアラームです");
+    expect(plan.speak).toBe(
+      "明日は7時です。5時50分、6時、6時10分のアラームです",
+    );
   });
 
   it("③ 採血 is not classified as 7時 even if it starts at 07:00", () => {
@@ -143,13 +155,19 @@ describe("planWakeAlarm patterns", () => {
       pattern: 3,
       patternLabel: "採血",
       skip: false,
-      alarmHour: 5,
-      alarmMinute: 0,
+      alarm1Hour: 5,
+      alarm1Minute: 40,
+      alarm2Hour: 5,
+      alarm2Minute: 50,
+      alarm3Hour: 6,
+      alarm3Minute: 0,
     });
-    expect(plan.speak).toBe("明日は採血です。5時のアラームです");
+    expect(plan.speak).toBe(
+      "明日は採血です。5時40分、5時50分、6時のアラームです",
+    );
   });
 
-  it("④ empty and PM休 share pattern 4 and skip the morning alarm", () => {
+  it("④ empty and PM休 share pattern 4 with 6:50, 7:00, 7:10", () => {
     const empty = planWakeAlarm({
       now: NIGHT,
       shiftLabels: LABELS,
@@ -158,11 +176,16 @@ describe("planWakeAlarm patterns", () => {
     expect(empty).toMatchObject({
       pattern: 4,
       patternLabel: "なし",
-      skip: true,
-      alarmHour: null,
+      skip: false,
+      alarm1Hour: 6,
+      alarm1Minute: 50,
+      alarm2Hour: 7,
+      alarm2Minute: 0,
+      alarm3Hour: 7,
+      alarm3Minute: 10,
     });
     expect(empty.speak).toBe(
-      "明日の勤務はありません。朝のアラームはかけません",
+      "明日の勤務はありません。6時50分、7時、7時10分のアラームです",
     );
 
     const pm = planWakeAlarm({
@@ -175,9 +198,13 @@ describe("planWakeAlarm patterns", () => {
     expect(pm).toMatchObject({
       pattern: 4,
       patternLabel: "PM休",
-      skip: true,
+      skip: false,
+      alarm1Hour: 6,
+      alarm1Minute: 50,
     });
-    expect(pm.speak).toBe("明日はPM休です。朝のアラームはかけません");
+    expect(pm.speak).toBe(
+      "明日はPM休です。6時50分、7時、7時10分のアラームです",
+    );
   });
 
   it("④ afternoon-only 当直 is treated like PM休", () => {
@@ -189,12 +216,14 @@ describe("planWakeAlarm patterns", () => {
     expect(plan).toMatchObject({
       pattern: 4,
       patternLabel: "PM休",
-      skip: true,
+      skip: false,
       shiftName: "当直",
+      alarm1Hour: 6,
+      alarm1Minute: 50,
     });
   });
 
-  it("⑤ 全休 → pattern 5", () => {
+  it("⑤ 全休 → no alarms", () => {
     const plan = planWakeAlarm({
       now: NIGHT,
       shiftLabels: LABELS,
@@ -206,6 +235,8 @@ describe("planWakeAlarm patterns", () => {
       pattern: 5,
       patternLabel: "全休",
       skip: true,
+      alarmCount: 0,
+      alarm1Hour: null,
     });
     expect(plan.speak).toBe("明日は全休です。アラームはかけません");
   });

@@ -233,17 +233,17 @@ Route Handler にする。分解ルールは単体テストする。
 
 見る日: **12時以降は翌日、午前は当日。** 会議は見ない。当直の翌朝への続きは使わない。
 
-| pattern | 枠                                        | 既定アラーム |
-| ------- | ----------------------------------------- | ------------ |
-| 1       | 6時（名前に「6時」、または開始 6時台）    | 4:30         |
-| 2       | 7時（名前に「7時」、または開始 7時台）    | 5:30         |
-| 3       | 採血（名前に「採血」。7時開始でもこちら） | 5:00         |
-| 4       | 何もなし / PM休 / 午後だけの勤務          | なし         |
-| 5       | 全休（全休・公休・休みの終日）            | なし         |
+| pattern | 枠                                        | アラーム3本        |
+| ------- | ----------------------------------------- | ------------------ |
+| 1       | 6時（名前に「6時」、または開始 6時台）    | 4:50 / 5:00 / 5:10 |
+| 2       | 7時（名前に「7時」、または開始 7時台）    | 5:50 / 6:00 / 6:10 |
+| 3       | 採血（名前に「採血」。7時開始でもこちら） | 5:40 / 5:50 / 6:00 |
+| 4       | 何もなし / PM休 / 午後だけの勤務          | 6:50 / 7:00 / 7:10 |
+| 5       | 全休（全休・公休・休みの終日）            | なし               |
 
-返すもの: `{ ok, pattern, patternLabel, skip, alarmHour, alarmMinute, alarmName, speak, shiftName, shiftStart, dateKey }`。
+返すもの: `{ ok, pattern, patternLabel, skip, alarmCount, alarm1Hour, alarm1Minute, alarm2Hour, alarm2Minute, alarm3Hour, alarm3Minute, alarmName1, alarmName2, alarmName3, speak, shiftName, shiftStart, dateKey }`。
 
-ショートカット側: URL を GET → 辞書化 → `pattern` で If（または `skip` が false なら `alarmHour`:`alarmMinute` で「勤務」アラーム）→ `speak` を読む。
+ショートカット「おやすみモード」: URL を GET → 辞書化 → `skip` が false なら「勤務1」「勤務2」「勤務3」を3本作成 → `speak` を読む。オートメーションは使わない。
 
 ---
 
