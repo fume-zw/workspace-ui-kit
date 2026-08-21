@@ -42,6 +42,7 @@ type BlockColorClasses = {
   bg: string;
   border: string;
   text: string;
+  fill: string;
 };
 
 const SHIFT_BLOCK_CLASS_MAP: Record<string, BlockColorClasses> = {
@@ -49,51 +50,61 @@ const SHIFT_BLOCK_CLASS_MAP: Record<string, BlockColorClasses> = {
     bg: "bg-primary/15",
     border: "border-l-primary",
     text: "text-primary",
+    fill: "bg-primary",
   },
   "chart-1": {
     bg: "bg-chart-1/15",
     border: "border-l-chart-1",
     text: "text-chart-1",
+    fill: "bg-chart-1",
   },
   "chart-2": {
     bg: "bg-chart-2/20",
     border: "border-l-chart-2",
     text: "text-chart-2",
+    fill: "bg-chart-2",
   },
   "chart-3": {
     bg: "bg-chart-3/15",
     border: "border-l-chart-3",
     text: "text-chart-3",
+    fill: "bg-chart-3",
   },
   "calendar-saturday": {
     bg: "bg-calendar-saturday/15",
     border: "border-l-calendar-saturday",
     text: "text-calendar-saturday",
+    fill: "bg-calendar-saturday",
   },
   "muted-foreground": {
     bg: "bg-muted",
     border: "border-l-muted-foreground",
     text: "text-muted-foreground",
+    fill: "bg-muted-foreground",
   },
   "schedule-orange": {
     bg: "bg-schedule-orange/15",
     border: "border-l-schedule-orange",
     text: "text-schedule-orange",
+    fill: "bg-schedule-orange",
   },
   "schedule-teal": {
     bg: "bg-schedule-teal/15",
     border: "border-l-schedule-teal",
     text: "text-schedule-teal",
+    fill: "bg-schedule-teal",
   },
   "schedule-violet": {
     bg: "bg-schedule-violet/15",
     border: "border-l-schedule-violet",
     text: "text-schedule-violet",
+    fill: "bg-schedule-violet",
   },
   "schedule-indigo": {
     bg: "bg-schedule-indigo/15",
     border: "border-l-schedule-indigo",
     text: "text-schedule-indigo",
+    fill: "bg-schedule-indigo",
   },
 };
 
@@ -107,6 +118,7 @@ export const EVENT_BLOCK_CLASSES: BlockColorClasses = {
   bg: "bg-chart-4/15",
   border: "border-l-chart-4",
   text: "text-foreground",
+  fill: "bg-chart-4",
 };
 
 /** イベントの色。ラベルがあればその色、なければ既定。 */

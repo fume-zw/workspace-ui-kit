@@ -21,6 +21,7 @@ import {
   getDateKeysForMode,
   layoutAllDayChips,
   layoutTimedBlocks,
+  layoutTimeMarkers,
   mergeTimedLabelsById,
 } from "@/lib/computed/schedule-layout";
 import { scheduleKindBadge } from "@/lib/computed/schedule-kind";
@@ -33,6 +34,7 @@ import {
   type ActivityLabel,
   type EventLabel,
   type LifeLabel,
+  type RecordLabel,
   type ScheduleEntry,
   type ShiftLabel,
 } from "@/lib/schema";
@@ -48,6 +50,7 @@ type ScheduleWeekViewProps = {
   activityLabels: ActivityLabel[];
   eventLabels: EventLabel[];
   lifeLabels: LifeLabel[];
+  recordLabels: RecordLabel[];
   mode: ScheduleGridMode;
   onModeChange: (mode: ScheduleGridMode) => void;
   focusDate: Date;
@@ -67,6 +70,7 @@ export function ScheduleWeekView({
   activityLabels,
   eventLabels,
   lifeLabels,
+  recordLabels,
   mode,
   onModeChange,
   focusDate,
@@ -95,6 +99,10 @@ export function ScheduleWeekView({
     () => new Map(lifeLabels.map((label) => [label.id, label])),
     [lifeLabels],
   );
+  const recordLabelsById = useMemo(
+    () => new Map(recordLabels.map((label) => [label.id, label])),
+    [recordLabels],
+  );
   const entryColors = useMemo(
     () => (entry: ScheduleEntry) => {
       if (entry.kind === "shift") {
@@ -111,6 +119,13 @@ export function ScheduleWeekView({
             "primary",
         );
       }
+      if (entry.kind === "record") {
+        return shiftColorBlockClasses(
+          (entry.recordLabelId &&
+            recordLabelsById.get(entry.recordLabelId)?.colorToken) ||
+            "primary",
+        );
+      }
       if (entry.kind === "life") {
         return eventColorBlockClasses(
           entry.lifeLabelId
@@ -124,8 +139,21 @@ export function ScheduleWeekView({
           : null,
       );
     },
-    [activityLabelsById, eventLabelsById, lifeLabelsById, shiftLabelsById],
+    [
+      activityLabelsById,
+      eventLabelsById,
+      lifeLabelsById,
+      recordLabelsById,
+      shiftLabelsById,
+    ],
   );
+
+  const entryLabel = (entry: ScheduleEntry) => {
+    if (entry.kind === "record" && entry.recordLabelId) {
+      return recordLabelsById.get(entry.recordLabelId)?.name ?? entry.title;
+    }
+    return entry.title;
+  };
 
   const dateKeys = useMemo(
     () => getDateKeysForMode(focusDate, mode),
@@ -157,6 +185,22 @@ export function ScheduleWeekView({
     }
     return map;
   }, [dateKeys, timedBlocks]);
+
+  const timeMarkers = useMemo(
+    () => layoutTimeMarkers(entries, dateKeys),
+    [dateKeys, entries],
+  );
+
+  const markersByDate = useMemo(() => {
+    const map = new Map<string, typeof timeMarkers>();
+    for (const dateKey of dateKeys) {
+      map.set(
+        dateKey,
+        timeMarkers.filter((marker) => marker.dateKey === dateKey),
+      );
+    }
+    return map;
+  }, [dateKeys, timeMarkers]);
 
   const gridHeight = SCHEDULE_GRID_HOURS * SCHEDULE_HOUR_HEIGHT;
   const columnTemplate =
@@ -321,7 +365,7 @@ export function ScheduleWeekView({
                       entry.id === selectedEntryId && "ring-2 ring-ring",
                     )}
                   >
-                    {entry.title}
+                    {entryLabel(entry)}
                   </button>
                 );
               })}
@@ -398,7 +442,7 @@ export function ScheduleWeekView({
                       }}
                     >
                       <span className="block truncate text-[10px] font-semibold leading-tight text-foreground">
-                        {entry.title}
+                        {entryLabel(entry)}
                       </span>
                       {height >= 28 ? (
                         <span className="block truncate text-[9px] text-muted-foreground">
@@ -410,6 +454,41 @@ export function ScheduleWeekView({
                           {scheduleKindBadge(entry)}
                         </Badge>
                       ) : null}
+                    </button>
+                  );
+                })}
+
+                {(markersByDate.get(dateKey) ?? []).map((marker) => {
+                  const { entry, minutes } = marker;
+                  const top = (minutes / 60) * SCHEDULE_HOUR_HEIGHT;
+                  const colors = entryColors(entry);
+                  return (
+                    <button
+                      key={`${dateKey}:marker:${entry.id}`}
+                      type="button"
+                      onClick={() => onSelectEntry(entry.id)}
+                      aria-label={`${entryLabel(entry)} ${timeFromJstIso(entry.startsAt)}`}
+                      aria-current={
+                        entry.id === selectedEntryId ? "true" : undefined
+                      }
+                      className={cn(
+                        "absolute inset-x-0 z-10 flex items-center gap-1 px-1",
+                        entry.id === selectedEntryId && "ring-2 ring-ring",
+                      )}
+                      style={{ top: top - 7 }}
+                    >
+                      <span
+                        className={cn(
+                          "shrink-0 text-[10px] font-medium leading-none",
+                          colors.text,
+                        )}
+                      >
+                        {entryLabel(entry)}
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className={cn("h-0.5 min-w-0 flex-1 rounded-full", colors.fill)}
+                      />
                     </button>
                   );
                 })}

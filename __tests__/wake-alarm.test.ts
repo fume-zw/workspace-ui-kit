@@ -73,6 +73,7 @@ function shift(
     eventLabelId: null,
     lifeLabelId: null,
     activityLabelId: null,
+    recordLabelId: null,
     timeOverridden: false,
   };
 }
@@ -249,6 +250,7 @@ describe("planWakeAlarm patterns", () => {
           eventLabelId: null,
           lifeLabelId: null,
           activityLabelId: null,
+          recordLabelId: null,
           timeOverridden: false,
         },
       ],

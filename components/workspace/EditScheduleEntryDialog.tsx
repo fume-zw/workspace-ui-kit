@@ -9,11 +9,13 @@ import {
   buildTimedEventRange,
   dateKeyFromJstIso,
   timeFromJstIso,
+  toJstIso,
 } from "@/lib/computed/schedule-datetime";
 import { shiftColorDotClass } from "@/lib/schedule-colors";
 import {
   type EventLabel,
   type LifeLabel,
+  type RecordLabel,
   type ScheduleEntry,
 } from "@/lib/schema";
 import { scheduleKindBadge } from "@/lib/computed/schedule-kind";
@@ -55,6 +57,7 @@ type ScheduleEntryUpdatePatch = Partial<
     | "allDay"
     | "eventLabelId"
     | "lifeLabelId"
+    | "recordLabelId"
     | "timeOverridden"
   >
 >;
@@ -67,12 +70,14 @@ type EntryDraft = {
   allDay: boolean;
   eventLabelId: string | null;
   lifeLabelId: string | null;
+  recordLabelId: string | null;
 };
 
 type EditScheduleEntryDialogProps = {
   entry: ScheduleEntry | undefined;
   eventLabels: EventLabel[];
   lifeLabels: LifeLabel[];
+  recordLabels?: RecordLabel[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdateEntry: (
@@ -92,14 +97,24 @@ function draftFromEntry(entry: ScheduleEntry): EntryDraft {
     allDay: entry.allDay,
     eventLabelId: entry.eventLabelId,
     lifeLabelId: entry.lifeLabelId,
+    recordLabelId: entry.recordLabelId,
   };
 }
 
 function toPatch(
   draft: EntryDraft,
   entry: ScheduleEntry,
+  recordLabels: RecordLabel[],
 ): ScheduleEntryUpdatePatch | null {
-  const title = draft.title.trim();
+  const isRecord = entry.kind === "record";
+  const recordLabel = recordLabels.find(
+    (label) => label.id === draft.recordLabelId,
+  );
+  const isMarker = recordLabel?.displayType === "marker";
+
+  const title = isRecord
+    ? (recordLabel?.name ?? entry.title).trim()
+    : draft.title.trim();
   if (!title || !draft.date) return null;
 
   const labelPatch: ScheduleEntryUpdatePatch =
@@ -107,7 +122,24 @@ function toPatch(
       ? { eventLabelId: draft.eventLabelId }
       : entry.kind === "life"
         ? { lifeLabelId: draft.lifeLabelId }
-        : {};
+        : isRecord
+          ? { recordLabelId: draft.recordLabelId }
+          : {};
+
+  if (isMarker) {
+    if (!draft.startTime) return null;
+    const instant = toJstIso(draft.date, draft.startTime);
+    const timesChanged =
+      instant !== entry.startsAt || instant !== entry.endsAt;
+    return {
+      title,
+      startsAt: instant,
+      endsAt: instant,
+      allDay: false,
+      ...labelPatch,
+      ...(timesChanged ? { timeOverridden: true } : {}),
+    };
+  }
 
   const range = draft.allDay
     ? { allDay: true as const, ...buildAllDayEventRange(draft.date) }
@@ -140,6 +172,7 @@ export function EditScheduleEntryDialog({
   entry,
   eventLabels,
   lifeLabels,
+  recordLabels = [],
   open,
   onOpenChange,
   onUpdateEntry,
@@ -155,6 +188,7 @@ export function EditScheduleEntryDialog({
       allDay: false,
       eventLabelId: null,
       lifeLabelId: null,
+      recordLabelId: null,
     },
   );
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -163,6 +197,7 @@ export function EditScheduleEntryDialog({
 
   const isEvent = entry.kind === "event";
   const isLife = entry.kind === "life";
+  const isRecord = entry.kind === "record";
   const isTimedLabel = entry.kind === "shift" || entry.kind === "activity";
   const kindLabel = scheduleKindBadge(entry);
   const selectedEventLabel = eventLabels.find(
@@ -171,13 +206,17 @@ export function EditScheduleEntryDialog({
   const selectedLifeLabel = lifeLabels.find(
     (label) => label.id === draft.lifeLabelId,
   );
+  const selectedRecordLabel = recordLabels.find(
+    (label) => label.id === draft.recordLabelId,
+  );
+  const isMarker = selectedRecordLabel?.displayType === "marker";
   const selectableLabels = isLife ? lifeLabels : eventLabels;
   const selectedLabel = isLife ? selectedLifeLabel : selectedEventLabel;
   const selectedLabelId = isLife ? draft.lifeLabelId : draft.eventLabelId;
   const labelAria = isLife ? "生活ラベル" : "イベントラベル";
 
   const handleSave = async () => {
-    const patch = toPatch(draft, entry);
+    const patch = toPatch(draft, entry, recordLabels);
     if (!patch) return;
     await onUpdateEntry(entry.id, patch);
     onOpenChange(false);
@@ -197,6 +236,7 @@ export function EditScheduleEntryDialog({
           </CardHeader>
           <CardContent>
             <dl className="flex flex-col gap-2.5 text-sm">
+              {!isRecord ? (
               <InlineFieldRow label="タイトル">
                 <Input
                   value={draft.title}
@@ -207,6 +247,13 @@ export function EditScheduleEntryDialog({
                   aria-label="タイトル"
                 />
               </InlineFieldRow>
+              ) : (
+              <InlineFieldRow label="ラベル">
+                <p className="text-sm text-foreground">
+                  {selectedRecordLabel?.name ?? entry.title}
+                </p>
+              </InlineFieldRow>
+              )}
               {(isEvent || isLife) && (
                 <InlineFieldRow label="ラベル">
                   <div className="flex items-center gap-2">
@@ -285,6 +332,7 @@ export function EditScheduleEntryDialog({
                   ariaLabel="日付"
                 />
               </InlineFieldRow>
+              {!isRecord ? (
               <InlineFieldRow label="終日">
                 <Label className="flex items-center gap-2 text-sm font-normal">
                   <Checkbox
@@ -297,9 +345,10 @@ export function EditScheduleEntryDialog({
                   終日の予定
                 </Label>
               </InlineFieldRow>
+              ) : null}
               {!draft.allDay && (
                 <>
-                  <InlineFieldRow label="開始">
+                  <InlineFieldRow label={isMarker ? "時刻" : "開始"}>
                     <Input
                       type="time"
                       value={draft.startTime}
@@ -309,10 +358,11 @@ export function EditScheduleEntryDialog({
                           startTime: event.target.value,
                         }))
                       }
-                      aria-label="開始時刻"
+                      aria-label={isMarker ? "時刻" : "開始時刻"}
                       className="bg-card"
                     />
                   </InlineFieldRow>
+                  {!isMarker ? (
                   <InlineFieldRow label="終了">
                     <Input
                       type="time"
@@ -327,6 +377,7 @@ export function EditScheduleEntryDialog({
                       className="bg-card"
                     />
                   </InlineFieldRow>
+                  ) : null}
                 </>
               )}
               {isTimedLabel ? (
@@ -352,7 +403,10 @@ export function EditScheduleEntryDialog({
         </Card>
         <DialogFooter className="border-t border-border px-6 py-4">
           <DialogClose render={<Button variant="outline">キャンセル</Button>} />
-          <Button onClick={handleSave} disabled={draft.title.trim() === ""}>
+          <Button
+            onClick={handleSave}
+            disabled={isRecord ? draft.startTime === "" : draft.title.trim() === ""}
+          >
             保存
           </Button>
         </DialogFooter>

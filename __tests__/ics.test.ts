@@ -40,6 +40,7 @@ const timedEvent: ScheduleEntry = {
   eventLabelId: "el1",
   lifeLabelId: null,
   activityLabelId: null,
+  recordLabelId: null,
   timeOverridden: false,
 };
 
@@ -114,6 +115,7 @@ describe("buildIcsCalendar", () => {
       eventLabelId: null,
       lifeLabelId: null,
       activityLabelId: "al1",
+      recordLabelId: null,
       timeOverridden: false,
     };
     const ics = buildIcsCalendar({
@@ -142,5 +144,32 @@ describe("buildIcsCalendar", () => {
     expect(ics).not.toContain("SUMMARY:タスク 試薬発注");
     expect(ics).toContain("SUMMARY:吹奏楽");
     expect(ics).toContain("UID:activity-a1@task-workspace");
+  });
+
+  it("omits record entries from the calendar feed", () => {
+    const record: ScheduleEntry = {
+      id: "r1",
+      kind: "record",
+      title: "睡眠",
+      startsAt: "2026-08-20T14:00:00.000Z",
+      endsAt: "2026-08-20T22:00:00.000Z",
+      allDay: false,
+      shiftLabelId: null,
+      eventLabelId: null,
+      lifeLabelId: null,
+      activityLabelId: null,
+      recordLabelId: "rl1",
+      timeOverridden: false,
+    };
+    const ics = buildIcsCalendar({
+      tasks: [],
+      entries: [timedEvent, record],
+      shiftLabels,
+      eventLabels,
+      now: NOW,
+    });
+    expect(ics).toContain("UID:event-e1@task-workspace");
+    expect(ics).not.toContain("UID:record-r1@task-workspace");
+    expect(ics).not.toContain("SUMMARY:睡眠");
   });
 });

@@ -1,6 +1,8 @@
 import {
   getTimedSegmentOnDay,
   isAllDayGridEntry,
+  isInstantRecord,
+  minutesFromJstIso,
 } from "@/lib/computed/schedule-layout";
 import {
   dateKeyFromJstIso,
@@ -23,7 +25,7 @@ export type AgendaTaskItem = {
 };
 
 export type AgendaEntryItem = {
-  kind: "event" | "shift" | "life" | "activity";
+  kind: "event" | "shift" | "life" | "activity" | "record";
   sortMinutes: number;
   timeLabel: string;
   entry: ScheduleEntry;
@@ -61,6 +63,19 @@ export function buildDayAgenda(
   }
 
   for (const entry of entries) {
+    if (isInstantRecord(entry)) {
+      const startKey = dateKeyFromJstIso(entry.startsAt);
+      if (startKey === dateKey) {
+        items.push({
+          kind: "record",
+          sortMinutes: minutesFromJstIso(entry.startsAt),
+          timeLabel: timeFromJstIso(entry.startsAt),
+          entry,
+        });
+      }
+      continue;
+    }
+
     if (isAllDayGridEntry(entry, timedLabelsById)) {
       const startKey = dateKeyFromJstIso(entry.startsAt);
       const endKey = dateKeyFromJstIso(entry.endsAt);

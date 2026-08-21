@@ -136,6 +136,7 @@ export default async function MobilePage() {
       activityLabels={scheduleData.activityLabels}
       eventLabels={scheduleData.eventLabels}
       lifeLabels={scheduleData.lifeLabels}
+      recordLabels={scheduleData.recordLabels}
       initialScheduleEntries={scheduleData.scheduleEntries}
     />
   );

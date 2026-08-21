@@ -26,6 +26,11 @@ describe("speakTimeLabel", () => {
     expect(speakTimeLabel("14:00–15:00")).toBe("14時から15時");
     expect(speakTimeLabel("09:30–10:00")).toBe("9時30分から10時");
   });
+
+  it("reads a single clock time for commute records", () => {
+    expect(speakTimeLabel("08:30")).toBe("8時30分");
+    expect(speakTimeLabel("17:00")).toBe("17時");
+  });
 });
 
 describe("formatAgendaSpeak", () => {
@@ -60,6 +65,7 @@ describe("formatAgendaSpeak", () => {
           eventLabelId: null,
           lifeLabelId: null,
           activityLabelId: null,
+          recordLabelId: null,
           timeOverridden: false,
         },
       },

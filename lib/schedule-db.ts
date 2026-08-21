@@ -4,6 +4,9 @@ import {
   type ActivityLabel,
   type EventLabel,
   type LifeLabel,
+  type RecordLabel,
+  type RecordLabelCode,
+  type RecordLabelDisplayType,
   type ScheduleEntry,
   type ScheduleEntryKind,
   type ShiftLabel,
@@ -16,6 +19,7 @@ export type ScheduleData = {
   eventLabels: EventLabel[];
   lifeLabels: LifeLabel[];
   activityLabels: ActivityLabel[];
+  recordLabels: RecordLabel[];
   scheduleEntries: ScheduleEntry[];
 };
 
@@ -30,8 +34,11 @@ const EVENT_LABEL_SELECT =
 
 const LIFE_LABEL_SELECT = EVENT_LABEL_SELECT;
 
+const RECORD_LABEL_SELECT =
+  "id, name, code, display_type, color_token, sort_order, archived_at";
+
 const SCHEDULE_ENTRY_SELECT =
-  "id, kind, title, starts_at, ends_at, all_day, shift_label_id, event_label_id, life_label_id, activity_label_id, time_overridden";
+  "id, kind, title, starts_at, ends_at, all_day, shift_label_id, event_label_id, life_label_id, activity_label_id, record_label_id, time_overridden";
 
 type TimedLabelRow = {
   id: string;
@@ -58,6 +65,16 @@ type EventLabelRow = {
 
 type LifeLabelRow = EventLabelRow;
 
+type RecordLabelRow = {
+  id: string;
+  name: string;
+  code: RecordLabelCode;
+  display_type: RecordLabelDisplayType;
+  color_token: string;
+  sort_order: number;
+  archived_at: string | null;
+};
+
 type ScheduleEntryRow = {
   id: string;
   kind: ScheduleEntryKind;
@@ -69,6 +86,7 @@ type ScheduleEntryRow = {
   event_label_id: string | null;
   life_label_id: string | null;
   activity_label_id: string | null;
+  record_label_id: string | null;
   time_overridden: boolean;
 };
 
@@ -114,6 +132,18 @@ function mapLifeLabelRow(row: LifeLabelRow): LifeLabel {
   };
 }
 
+function mapRecordLabelRow(row: RecordLabelRow): RecordLabel {
+  return {
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    displayType: row.display_type,
+    colorToken: row.color_token,
+    sortOrder: row.sort_order,
+    archivedAt: row.archived_at,
+  };
+}
+
 function mapScheduleEntryRow(row: ScheduleEntryRow): ScheduleEntry {
   return {
     id: row.id,
@@ -126,6 +156,7 @@ function mapScheduleEntryRow(row: ScheduleEntryRow): ScheduleEntry {
     eventLabelId: row.event_label_id,
     lifeLabelId: row.life_label_id,
     activityLabelId: row.activity_label_id,
+    recordLabelId: row.record_label_id,
     timeOverridden: row.time_overridden,
   };
 }
@@ -133,7 +164,14 @@ function mapScheduleEntryRow(row: ScheduleEntryRow): ScheduleEntry {
 export async function fetchScheduleData(
   supabase: SupabaseClient,
 ): Promise<{ data: ScheduleData | null; error: string | null }> {
-  const [labelResult, eventLabelResult, lifeLabelResult, activityLabelResult, entryResult] =
+  const [
+    labelResult,
+    eventLabelResult,
+    lifeLabelResult,
+    activityLabelResult,
+    recordLabelResult,
+    entryResult,
+  ] =
     await Promise.all([
       supabase
         .from("shift_labels")
@@ -156,6 +194,11 @@ export async function fetchScheduleData(
         .is("archived_at", null)
         .order("sort_order"),
       supabase
+        .from("record_labels")
+        .select(RECORD_LABEL_SELECT)
+        .is("archived_at", null)
+        .order("sort_order"),
+      supabase
         .from("schedule_entries")
         .select(SCHEDULE_ENTRY_SELECT)
         .order("starts_at"),
@@ -166,6 +209,7 @@ export async function fetchScheduleData(
     eventLabelResult.error?.message ??
     lifeLabelResult.error?.message ??
     activityLabelResult.error?.message ??
+    recordLabelResult.error?.message ??
     entryResult.error?.message ??
     null;
   if (error) {
@@ -185,6 +229,9 @@ export async function fetchScheduleData(
       ),
       activityLabels: (activityLabelResult.data ?? []).map((row) =>
         mapActivityLabelRow(row as ActivityLabelRow),
+      ),
+      recordLabels: (recordLabelResult.data ?? []).map((row) =>
+        mapRecordLabelRow(row as RecordLabelRow),
       ),
       scheduleEntries: (entryResult.data ?? []).map((row) =>
         mapScheduleEntryRow(row as ScheduleEntryRow),
@@ -198,7 +245,14 @@ export async function fetchScheduleDataForUser(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<{ data: ScheduleData | null; error: string | null }> {
-  const [labelResult, eventLabelResult, lifeLabelResult, activityLabelResult, entryResult] =
+  const [
+    labelResult,
+    eventLabelResult,
+    lifeLabelResult,
+    activityLabelResult,
+    recordLabelResult,
+    entryResult,
+  ] =
     await Promise.all([
       supabase
         .from("shift_labels")
@@ -225,6 +279,12 @@ export async function fetchScheduleDataForUser(
         .is("archived_at", null)
         .order("sort_order"),
       supabase
+        .from("record_labels")
+        .select(RECORD_LABEL_SELECT)
+        .eq("user_id", userId)
+        .is("archived_at", null)
+        .order("sort_order"),
+      supabase
         .from("schedule_entries")
         .select(SCHEDULE_ENTRY_SELECT)
         .eq("user_id", userId)
@@ -236,6 +296,7 @@ export async function fetchScheduleDataForUser(
     eventLabelResult.error?.message ??
     lifeLabelResult.error?.message ??
     activityLabelResult.error?.message ??
+    recordLabelResult.error?.message ??
     entryResult.error?.message ??
     null;
   if (error) {
@@ -255,6 +316,9 @@ export async function fetchScheduleDataForUser(
       ),
       activityLabels: (activityLabelResult.data ?? []).map((row) =>
         mapActivityLabelRow(row as ActivityLabelRow),
+      ),
+      recordLabels: (recordLabelResult.data ?? []).map((row) =>
+        mapRecordLabelRow(row as RecordLabelRow),
       ),
       scheduleEntries: (entryResult.data ?? []).map((row) =>
         mapScheduleEntryRow(row as ScheduleEntryRow),
@@ -566,6 +630,71 @@ export async function archiveLifeLabel(
   return { error: error?.message ?? null };
 }
 
+export type RecordLabelInsert = {
+  name: string;
+  code: RecordLabelCode;
+  displayType: RecordLabelDisplayType;
+  colorToken?: string;
+  sortOrder: number;
+};
+
+export async function insertRecordLabel(
+  supabase: SupabaseClient,
+  userId: string,
+  input: RecordLabelInsert,
+): Promise<{ data: RecordLabel | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from("record_labels")
+    .insert({
+      user_id: userId,
+      name: input.name.trim(),
+      code: input.code,
+      display_type: input.displayType,
+      color_token: input.colorToken ?? "primary",
+      sort_order: input.sortOrder,
+    })
+    .select(RECORD_LABEL_SELECT)
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: mapRecordLabelRow(data as RecordLabelRow), error: null };
+}
+
+export async function updateRecordLabel(
+  supabase: SupabaseClient,
+  labelId: string,
+  patch: Partial<Pick<RecordLabel, "name" | "colorToken" | "sortOrder">>,
+): Promise<{ data: RecordLabel | null; error: string | null }> {
+  const payload: Record<string, unknown> = {};
+  if (patch.name !== undefined) payload.name = patch.name.trim();
+  if (patch.colorToken !== undefined) payload.color_token = patch.colorToken;
+  if (patch.sortOrder !== undefined) payload.sort_order = patch.sortOrder;
+
+  const { data, error } = await supabase
+    .from("record_labels")
+    .update(payload)
+    .eq("id", labelId)
+    .select(RECORD_LABEL_SELECT)
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  const mapped = mapRecordLabelRow(data as RecordLabelRow);
+  if (patch.name !== undefined) {
+    await supabase
+      .from("schedule_entries")
+      .update({ title: mapped.name })
+      .eq("record_label_id", labelId);
+  }
+
+  return { data: mapped, error: null };
+}
+
 export type ScheduleEntryInsert = {
   kind: ScheduleEntryKind;
   title: string;
@@ -576,6 +705,7 @@ export type ScheduleEntryInsert = {
   eventLabelId?: string | null;
   lifeLabelId?: string | null;
   activityLabelId?: string | null;
+  recordLabelId?: string | null;
   timeOverridden?: boolean;
 };
 
@@ -597,6 +727,7 @@ export async function insertScheduleEntry(
       event_label_id: input.eventLabelId ?? null,
       life_label_id: input.lifeLabelId ?? null,
       activity_label_id: input.activityLabelId ?? null,
+      record_label_id: input.recordLabelId ?? null,
       time_overridden: input.timeOverridden ?? false,
     })
     .select(SCHEDULE_ENTRY_SELECT)
@@ -623,6 +754,7 @@ export async function updateScheduleEntry(
       | "eventLabelId"
       | "lifeLabelId"
       | "activityLabelId"
+      | "recordLabelId"
       | "timeOverridden"
     >
   >,
@@ -637,6 +769,9 @@ export async function updateScheduleEntry(
   if (patch.lifeLabelId !== undefined) payload.life_label_id = patch.lifeLabelId;
   if (patch.activityLabelId !== undefined) {
     payload.activity_label_id = patch.activityLabelId;
+  }
+  if (patch.recordLabelId !== undefined) {
+    payload.record_label_id = patch.recordLabelId;
   }
   if (patch.timeOverridden !== undefined) {
     payload.time_overridden = patch.timeOverridden;

@@ -112,6 +112,7 @@ export default async function Page() {
       initialActivityLabels={scheduleData.activityLabels}
       initialEventLabels={scheduleData.eventLabels}
       initialLifeLabels={scheduleData.lifeLabels}
+      initialRecordLabels={scheduleData.recordLabels}
       initialScheduleEntries={scheduleData.scheduleEntries}
       initialRecurringTemplates={recurringTemplates}
       workspace={wsResult.data}

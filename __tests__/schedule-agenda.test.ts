@@ -20,6 +20,7 @@ function makeEntry(
     eventLabelId: null,
     lifeLabelId: null,
     activityLabelId: null,
+    recordLabelId: null,
     timeOverridden: false,
     ...overrides,
   };
@@ -151,6 +152,38 @@ describe("buildDayAgenda", () => {
     expect(items[0]).toMatchObject({
       kind: "activity",
       timeLabel: "18:00–20:00",
+    });
+  });
+
+  it("記録の時刻バーは単一時刻、睡眠の帯は開始–終了で並ぶ", () => {
+    const clockIn = toJstIso("2026-07-06", "08:30");
+    const entries = [
+      makeEntry({
+        id: "rec-in",
+        kind: "record",
+        title: "出勤",
+        recordLabelId: "R-in",
+        startsAt: clockIn,
+        endsAt: clockIn,
+      }),
+      makeEntry({
+        id: "rec-sleep",
+        kind: "record",
+        title: "睡眠",
+        recordLabelId: "R-sleep",
+        startsAt: toJstIso("2026-07-06", "23:00"),
+        endsAt: toJstIso("2026-07-07", "07:00"),
+      }),
+    ];
+    const items = buildDayAgenda("2026-07-06", [], entries, new Map());
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({
+      kind: "record",
+      timeLabel: "08:30",
+    });
+    expect(items[1]).toMatchObject({
+      kind: "record",
+      timeLabel: "23:00–07:00",
     });
   });
 });
