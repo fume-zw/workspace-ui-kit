@@ -12,6 +12,7 @@ import { useState, useCallback, useMemo } from "react";
 import { format, startOfDay } from "date-fns";
 
 import { type ScheduleGridMode, mergeTimedLabelsById } from "@/lib/computed/schedule-layout";
+import { type NewScheduleCopyInput } from "@/lib/computed/schedule-copy";
 import { buildTimedEventRange, toJstIso } from "@/lib/computed/schedule-datetime";
 
 import {
@@ -438,6 +439,42 @@ export function Workspace({
     setEditEntryKey((key) => key + 1);
     setEditEntryOpen(true);
   }, []);
+
+  const copyScheduleEntryHandler = useCallback(
+    async (input: NewScheduleCopyInput) => {
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setActionError(authError?.message ?? "ログインセッションが切れました。");
+        return;
+      }
+
+      const { data, error } = await insertScheduleEntry(supabase, user.id, {
+        kind: input.kind,
+        title: input.title,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        allDay: input.allDay,
+        eventLabelId: input.eventLabelId,
+        lifeLabelId: input.lifeLabelId,
+        recordLabelId: input.recordLabelId,
+      });
+      if (error || !data) {
+        setActionError(error ?? "予定のコピーに失敗しました。");
+        return;
+      }
+
+      setActionError(null);
+      setScheduleEntries((prev) =>
+        [...prev, data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      );
+      setSelectedScheduleEntryId(data.id);
+      setView("schedule");
+    },
+    [supabase],
+  );
 
   const updateScheduleEntryHandler = useCallback(
     async (
@@ -1648,6 +1685,7 @@ export function Workspace({
           onOpenChange={setEditEntryOpen}
           onUpdateEntry={updateScheduleEntryHandler}
           onDeleteEntry={deleteScheduleEntryHandler}
+          onCopyEntry={copyScheduleEntryHandler}
           onManageLabels={() => {
             setEditEntryOpen(false);
             if (activeScheduleEntry?.kind === "life") {

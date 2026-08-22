@@ -23,7 +23,8 @@ import {
   type ShiftLabel,
   type Task,
 } from "@/lib/schema";
-import { fetchScheduleData, updateScheduleEntry, deleteScheduleEntry } from "@/lib/schedule-db";
+import { type NewScheduleCopyInput } from "@/lib/computed/schedule-copy";
+import { fetchScheduleData, insertScheduleEntry, updateScheduleEntry, deleteScheduleEntry } from "@/lib/schedule-db";
 import { createClient } from "@/lib/supabase/client";
 import {
   fetchTasks,
@@ -174,6 +175,27 @@ export function MobileWorkspace({
     setScheduleEntries((current) => current.filter((entry) => entry.id !== entryId));
   };
 
+  const handleCopyEntry = async (input: NewScheduleCopyInput) => {
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) return;
+
+    const { data, error } = await insertScheduleEntry(supabase, user.id, {
+      kind: input.kind,
+      title: input.title,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      allDay: input.allDay,
+      eventLabelId: input.eventLabelId,
+      lifeLabelId: input.lifeLabelId,
+      recordLabelId: input.recordLabelId,
+    });
+    if (error || !data) return;
+    handleEventCreated(data);
+  };
+
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -304,6 +326,7 @@ export function MobileWorkspace({
         }}
         onUpdateEntry={handleUpdateEntry}
         onDeleteEntry={handleDeleteEntry}
+        onCopyEntry={handleCopyEntry}
       />
     </div>
   );

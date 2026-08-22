@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Settings2, Trash2 } from "lucide-react";
+import { Copy, Settings2, Trash2 } from "lucide-react";
 
 import { InlineDateField, InlineFieldRow } from "@/components/primitives";
 import {
-  buildAllDayEventRange,
-  buildTimedEventRange,
-  dateKeyFromJstIso,
-  timeFromJstIso,
-  toJstIso,
-} from "@/lib/computed/schedule-datetime";
+  draftFromEntry,
+  emptyEntryDraft,
+  isCopyableScheduleKind,
+  toCopyInsert,
+  toPatch,
+  type EntryDraft,
+  type NewScheduleCopyInput,
+  type ScheduleEntryUpdatePatch,
+} from "@/lib/computed/schedule-copy";
 import { shiftColorDotClass } from "@/lib/schedule-colors";
 import {
   type EventLabel,
@@ -23,12 +26,7 @@ import { cn } from "@/lib/utils";
 import { DeleteConfirmDialog } from "@/components/workspace/DeleteConfirmDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -48,31 +46,6 @@ import {
 
 const NO_LABEL_VALUE = "__none__";
 
-type ScheduleEntryUpdatePatch = Partial<
-  Pick<
-    ScheduleEntry,
-    | "title"
-    | "startsAt"
-    | "endsAt"
-    | "allDay"
-    | "eventLabelId"
-    | "lifeLabelId"
-    | "recordLabelId"
-    | "timeOverridden"
-  >
->;
-
-type EntryDraft = {
-  title: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  allDay: boolean;
-  eventLabelId: string | null;
-  lifeLabelId: string | null;
-  recordLabelId: string | null;
-};
-
 type EditScheduleEntryDialogProps = {
   entry: ScheduleEntry | undefined;
   eventLabels: EventLabel[];
@@ -85,88 +58,9 @@ type EditScheduleEntryDialogProps = {
     patch: ScheduleEntryUpdatePatch,
   ) => void | Promise<void>;
   onDeleteEntry: (entryId: string) => void | Promise<void>;
+  onCopyEntry?: (input: NewScheduleCopyInput) => void | Promise<void>;
   onManageLabels?: () => void;
 };
-
-function draftFromEntry(entry: ScheduleEntry): EntryDraft {
-  return {
-    title: entry.title,
-    date: dateKeyFromJstIso(entry.startsAt),
-    startTime: timeFromJstIso(entry.startsAt),
-    endTime: timeFromJstIso(entry.endsAt),
-    allDay: entry.allDay,
-    eventLabelId: entry.eventLabelId,
-    lifeLabelId: entry.lifeLabelId,
-    recordLabelId: entry.recordLabelId,
-  };
-}
-
-function toPatch(
-  draft: EntryDraft,
-  entry: ScheduleEntry,
-  recordLabels: RecordLabel[],
-): ScheduleEntryUpdatePatch | null {
-  const isRecord = entry.kind === "record";
-  const recordLabel = recordLabels.find(
-    (label) => label.id === draft.recordLabelId,
-  );
-  const isMarker = recordLabel?.displayType === "marker";
-
-  const title = isRecord
-    ? (recordLabel?.name ?? entry.title).trim()
-    : draft.title.trim();
-  if (!title || !draft.date) return null;
-
-  const labelPatch: ScheduleEntryUpdatePatch =
-    entry.kind === "event"
-      ? { eventLabelId: draft.eventLabelId }
-      : entry.kind === "life"
-        ? { lifeLabelId: draft.lifeLabelId }
-        : isRecord
-          ? { recordLabelId: draft.recordLabelId }
-          : {};
-
-  if (isMarker) {
-    if (!draft.startTime) return null;
-    const instant = toJstIso(draft.date, draft.startTime);
-    const timesChanged =
-      instant !== entry.startsAt || instant !== entry.endsAt;
-    return {
-      title,
-      startsAt: instant,
-      endsAt: instant,
-      allDay: false,
-      ...labelPatch,
-      ...(timesChanged ? { timeOverridden: true } : {}),
-    };
-  }
-
-  const range = draft.allDay
-    ? { allDay: true as const, ...buildAllDayEventRange(draft.date) }
-    : (() => {
-        if (!draft.startTime || !draft.endTime) return null;
-        const timed = buildTimedEventRange(
-          draft.date,
-          draft.startTime,
-          draft.endTime,
-        );
-        if (!timed) return null;
-        return { allDay: false as const, ...timed };
-      })();
-  if (!range) return null;
-
-  const timesChanged =
-    range.startsAt !== entry.startsAt ||
-    range.endsAt !== entry.endsAt ||
-    range.allDay !== entry.allDay;
-
-  return {
-    title,
-    ...range,
-    ...labelPatch,
-    ...(timesChanged ? { timeOverridden: true } : {}),
-  };
-}
 
 export function EditScheduleEntryDialog({
   entry,
@@ -177,20 +71,13 @@ export function EditScheduleEntryDialog({
   onOpenChange,
   onUpdateEntry,
   onDeleteEntry,
+  onCopyEntry,
   onManageLabels,
 }: EditScheduleEntryDialogProps) {
   const [draft, setDraft] = useState<EntryDraft>(() =>
-    entry ? draftFromEntry(entry) : {
-      title: "",
-      date: "",
-      startTime: "09:00",
-      endTime: "10:00",
-      allDay: false,
-      eventLabelId: null,
-      lifeLabelId: null,
-      recordLabelId: null,
-    },
+    entry ? draftFromEntry(entry) : emptyEntryDraft(),
   );
+  const [mode, setMode] = useState<"edit" | "copy">("edit");
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   if (!entry) return null;
@@ -199,6 +86,8 @@ export function EditScheduleEntryDialog({
   const isLife = entry.kind === "life";
   const isRecord = entry.kind === "record";
   const isTimedLabel = entry.kind === "shift" || entry.kind === "activity";
+  const canCopy = Boolean(onCopyEntry) && isCopyableScheduleKind(entry.kind);
+  const isCopyMode = mode === "copy";
   const kindLabel = scheduleKindBadge(entry);
   const selectedEventLabel = eventLabels.find(
     (label) => label.id === draft.eventLabelId,
@@ -214,21 +103,47 @@ export function EditScheduleEntryDialog({
   const selectedLabel = isLife ? selectedLifeLabel : selectedEventLabel;
   const selectedLabelId = isLife ? draft.lifeLabelId : draft.eventLabelId;
   const labelAria = isLife ? "生活ラベル" : "イベントラベル";
+  const canSave = isRecord
+    ? draft.date !== "" && draft.startTime !== ""
+    : draft.title.trim() !== "" && draft.date !== "";
 
   const handleSave = async () => {
+    if (isCopyMode) {
+      const input = toCopyInsert(draft, entry, recordLabels);
+      if (!input || !onCopyEntry) return;
+      await onCopyEntry(input);
+      onOpenChange(false);
+      return;
+    }
     const patch = toPatch(draft, entry, recordLabels);
     if (!patch) return;
     await onUpdateEntry(entry.id, patch);
     onOpenChange(false);
   };
 
+  const handleCopy = () => {
+    setDraft((current) => ({ ...current, date: "" }));
+    setMode("copy");
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          setMode("edit");
+          setDraft(draftFromEntry(entry));
+        }
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent className="gap-0 p-0 sm:max-w-lg">
         <Card className="rounded-none border-0 shadow-none">
           <CardHeader>
             <div className="flex flex-col gap-2">
-              <CardTitle>{kindLabel}を編集</CardTitle>
+              <CardTitle>
+                {isCopyMode ? `${kindLabel}をコピー` : `${kindLabel}を編集`}
+              </CardTitle>
               <Badge variant="secondary" className="w-fit">
                 {kindLabel}
               </Badge>
@@ -237,22 +152,25 @@ export function EditScheduleEntryDialog({
           <CardContent>
             <dl className="flex flex-col gap-2.5 text-sm">
               {!isRecord ? (
-              <InlineFieldRow label="タイトル">
-                <Input
-                  value={draft.title}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, title: event.target.value }))
-                  }
-                  placeholder="タイトルを入力"
-                  aria-label="タイトル"
-                />
-              </InlineFieldRow>
+                <InlineFieldRow label="タイトル">
+                  <Input
+                    value={draft.title}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        title: event.target.value,
+                      }))
+                    }
+                    placeholder="タイトルを入力"
+                    aria-label="タイトル"
+                  />
+                </InlineFieldRow>
               ) : (
-              <InlineFieldRow label="ラベル">
-                <p className="text-sm text-foreground">
-                  {selectedRecordLabel?.name ?? entry.title}
-                </p>
-              </InlineFieldRow>
+                <InlineFieldRow label="ラベル">
+                  <p className="text-sm text-foreground">
+                    {selectedRecordLabel?.name ?? entry.title}
+                  </p>
+                </InlineFieldRow>
               )}
               {(isEvent || isLife) && (
                 <InlineFieldRow label="ラベル">
@@ -291,7 +209,9 @@ export function EditScheduleEntryDialog({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent align="start">
-                        <SelectItem value={NO_LABEL_VALUE}>ラベルなし</SelectItem>
+                        <SelectItem value={NO_LABEL_VALUE}>
+                          ラベルなし
+                        </SelectItem>
                         {selectableLabels.map((label) => (
                           <SelectItem key={label.id} value={label.id}>
                             <span className="flex items-center gap-2">
@@ -330,21 +250,25 @@ export function EditScheduleEntryDialog({
                     setDraft((current) => ({ ...current, date: value }))
                   }
                   ariaLabel="日付"
+                  clearable={isCopyMode}
                 />
               </InlineFieldRow>
               {!isRecord ? (
-              <InlineFieldRow label="終日">
-                <Label className="flex items-center gap-2 text-sm font-normal">
-                  <Checkbox
-                    checked={draft.allDay}
-                    onCheckedChange={(checked) =>
-                      setDraft((current) => ({ ...current, allDay: checked === true }))
-                    }
-                    aria-label="終日"
-                  />
-                  終日の予定
-                </Label>
-              </InlineFieldRow>
+                <InlineFieldRow label="終日">
+                  <Label className="flex items-center gap-2 text-sm font-normal">
+                    <Checkbox
+                      checked={draft.allDay}
+                      onCheckedChange={(checked) =>
+                        setDraft((current) => ({
+                          ...current,
+                          allDay: checked === true,
+                        }))
+                      }
+                      aria-label="終日"
+                    />
+                    終日の予定
+                  </Label>
+                </InlineFieldRow>
               ) : null}
               {!draft.allDay && (
                 <>
@@ -363,20 +287,20 @@ export function EditScheduleEntryDialog({
                     />
                   </InlineFieldRow>
                   {!isMarker ? (
-                  <InlineFieldRow label="終了">
-                    <Input
-                      type="time"
-                      value={draft.endTime}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          endTime: event.target.value,
-                        }))
-                      }
-                      aria-label="終了時刻"
-                      className="bg-card"
-                    />
-                  </InlineFieldRow>
+                    <InlineFieldRow label="終了">
+                      <Input
+                        type="time"
+                        value={draft.endTime}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            endTime: event.target.value,
+                          }))
+                        }
+                        aria-label="終了時刻"
+                        className="bg-card"
+                      />
+                    </InlineFieldRow>
                   ) : null}
                 </>
               )}
@@ -385,28 +309,48 @@ export function EditScheduleEntryDialog({
                   この日だけ時刻を変えます。同じラベルのほかの日はそのままです。
                 </p>
               ) : null}
+              {isCopyMode ? (
+                <p className="text-xs text-muted-foreground">
+                  元の予定はそのまま残ります。日付を選んで保存すると複製されます。
+                </p>
+              ) : null}
             </dl>
 
-            <div className="flex justify-end border-t border-border pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setDeleteOpen(true)}
-                className="text-destructive hover:text-destructive"
+            {isCopyMode ? null : (
+              <div
+                className={cn(
+                  "flex border-t border-border pt-4",
+                  canCopy ? "justify-between gap-2" : "justify-end",
+                )}
               >
-                <Trash2 data-icon="inline-start" />
-                削除
-              </Button>
-            </div>
+                {canCopy ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopy}
+                  >
+                    <Copy data-icon="inline-start" />
+                    予定をコピーする
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDeleteOpen(true)}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 data-icon="inline-start" />
+                  削除
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
         <DialogFooter className="border-t border-border px-6 py-4">
           <DialogClose render={<Button variant="outline">キャンセル</Button>} />
-          <Button
-            onClick={handleSave}
-            disabled={isRecord ? draft.startTime === "" : draft.title.trim() === ""}
-          >
+          <Button onClick={handleSave} disabled={!canSave}>
             保存
           </Button>
         </DialogFooter>
