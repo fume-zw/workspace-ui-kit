@@ -1,0 +1,47 @@
+name: Weekly review LINE
+
+on:
+  schedule:
+    # 月曜 08:00 JST = 日曜 23:00 UTC。直前の月曜〜日曜を評価する。
+    - cron: "0 23 * * 0"
+  workflow_dispatch:
+    inputs:
+      period:
+        description: previous=先週 / current=今週ここまで
+        default: previous
+        type: choice
+        options:
+          - previous
+          - current
+      dry:
+        description: LINE に送らず本文だけ返す
+        default: "false"
+        type: boolean
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call weekly review API
+        env:
+          WEEKLY_REVIEW_URL: ${{ secrets.WEEKLY_REVIEW_URL }}
+          INBOX_TOKEN: ${{ secrets.INBOX_TOKEN }}
+          PERIOD: ${{ github.event.inputs.period || 'previous' }}
+          DRY: ${{ github.event.inputs.dry || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEEKLY_REVIEW_URL:-}" ]; then
+            echo "WEEKLY_REVIEW_URL が未設定です。Vercel の /api/weekly-review の URL を GitHub Secret に入れてください。"
+            exit 1
+          fi
+          if [ -z "${INBOX_TOKEN:-}" ]; then
+            echo "INBOX_TOKEN が未設定です。"
+            exit 1
+          fi
+          query="period=${PERIOD}"
+          if [ "${DRY}" = "true" ]; then
+            query="${query}&dry=1"
+          fi
+          curl -fsS -X POST "${WEEKLY_REVIEW_URL}?${query}" \
+            -H "Authorization: Bearer ${INBOX_TOKEN}" \
+            -H "Content-Type: application/json"
