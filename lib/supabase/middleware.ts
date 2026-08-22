@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   "/api/agenda",
   "/api/wake",
   "/api/calendar",
+  "/api/weekly-review",
 ];
 
 function isPublicPath(pathname: string) {
@@ -27,7 +28,9 @@ export async function updateSession(request: NextRequest) {
     pathname === "/api/wake" ||
     pathname.startsWith("/api/wake/") ||
     pathname === "/api/calendar" ||
-    pathname.startsWith("/api/calendar/")
+    pathname.startsWith("/api/calendar/") ||
+    pathname === "/api/weekly-review" ||
+    pathname.startsWith("/api/weekly-review/")
   ) {
     return NextResponse.next({ request });
   }
