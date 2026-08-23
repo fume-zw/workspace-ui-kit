@@ -351,10 +351,7 @@ describe("inbox speak helpers", () => {
 
   it("keeps おやすみ as sleep even with スケジュールに入れて", () => {
     const bedtimeNow = new Date("2026-08-20T14:15:00.000Z");
-    const parsed = parseUtterance(
-      "おやすみをスケジュールに入れて",
-      bedtimeNow,
-    );
+    const parsed = parseUtterance("おやすみをスケジュールに入れて", bedtimeNow);
     expect(parsed.kind).toBe("sleep");
     if (parsed.kind === "sleep") {
       expect(parsed.action).toBe("bedtime");
@@ -380,6 +377,56 @@ describe("inbox speak helpers", () => {
       title: "寝る前に薬",
       dueDate: null,
     });
+  });
+
+  it("records いってきます as clock-in at the spoken now", () => {
+    const parsed = parseUtterance("いってきます", NOW);
+    expect(parsed).toEqual({
+      kind: "commute",
+      action: "clock_in",
+      title: "出勤",
+      dateKey: "2026-08-20",
+      startTime: "10:00",
+    });
+    expect(speakInboxSuccess(parsed)).toBe("10時に出勤を記録しました");
+    expect(formatInboxWhen(parsed)).toBe("出勤 2026-08-20 10:00");
+  });
+
+  it("records ただいま as clock-out at the spoken now", () => {
+    const parsed = parseUtterance("ただいま", NOW);
+    expect(parsed).toEqual({
+      kind: "commute",
+      action: "clock_out",
+      title: "帰宅",
+      dateKey: "2026-08-20",
+      startTime: "10:00",
+    });
+    expect(speakInboxSuccess(parsed)).toBe("10時に帰宅を記録しました");
+  });
+
+  it("records 8時にいってきます as morning clock-in", () => {
+    const parsed = parseUtterance("8時にいってきます", NOW);
+    expect(parsed).toEqual({
+      kind: "commute",
+      action: "clock_in",
+      title: "出勤",
+      dateKey: "2026-08-20",
+      startTime: "08:00",
+    });
+  });
+
+  it("keeps いってきますをタスクに入れて as a task", () => {
+    const parsed = parseUtterance("いってきますをタスクに入れて", NOW);
+    expect(parsed).toEqual({
+      kind: "task",
+      title: "いってきます",
+      dueDate: null,
+    });
+  });
+
+  it("does not treat ただいま会議 as commute", () => {
+    const parsed = parseUtterance("ただいま会議", NOW);
+    expect(parsed.kind).not.toBe("commute");
   });
 
   it("records お風呂 as life for 30 minutes from now", () => {

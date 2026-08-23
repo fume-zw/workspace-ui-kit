@@ -1,4 +1,5 @@
 import {
+  persistInboxCommute,
   persistInboxEvent,
   persistInboxLife,
   persistInboxSleep,
@@ -114,9 +115,11 @@ async function handleInbox(request: Request): Promise<Response> {
         ? await persistInboxTask(supabase, userId, parsed)
         : parsed.kind === "sleep"
           ? await persistInboxSleep(supabase, userId, parsed)
-          : parsed.kind === "life"
-            ? await persistInboxLife(supabase, userId, parsed)
-            : await persistInboxEvent(supabase, userId, parsed);
+          : parsed.kind === "commute"
+            ? await persistInboxCommute(supabase, userId, parsed)
+            : parsed.kind === "life"
+              ? await persistInboxLife(supabase, userId, parsed)
+              : await persistInboxEvent(supabase, userId, parsed);
     if ("error" in saved) {
       return shortcutJson({
         ok: false,

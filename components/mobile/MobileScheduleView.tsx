@@ -147,7 +147,7 @@ export function MobileScheduleView({
 
       <p className="text-center text-xs text-muted-foreground">
         <CalendarDays className="mr-1 inline size-3.5 align-text-bottom" />
-        予定をタップして時刻を直せます。勤務・定期の一括と出勤・帰宅の記録は PC からです。
+        予定をタップして時刻を直せます。出勤・帰宅は「いってきます」「ただいま」でも記録できます。勤務・定期の一括は PC からです。
       </p>
 
       <div className="flex flex-col gap-2">

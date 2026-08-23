@@ -4,9 +4,12 @@
  */
 
 import {
-  SLEEP_EVENT_TITLE,
-  type SleepAction,
-} from "@/lib/inbox/sleep";
+  CLOCK_IN_PHRASES,
+  CLOCK_OUT_PHRASES,
+  commuteTitle,
+  type CommuteAction,
+} from "@/lib/inbox/commute";
+import { SLEEP_EVENT_TITLE, type SleepAction } from "@/lib/inbox/sleep";
 
 export type ParsedInboxTask = {
   kind: "task";
@@ -39,11 +42,20 @@ export type ParsedInboxLife = {
   endTime: string;
 };
 
+export type ParsedInboxCommute = {
+  kind: "commute";
+  action: CommuteAction;
+  title: string;
+  dateKey: string;
+  startTime: string;
+};
+
 export type ParsedInbox =
   | ParsedInboxTask
   | ParsedInboxEvent
   | ParsedInboxSleep
-  | ParsedInboxLife;
+  | ParsedInboxLife
+  | ParsedInboxCommute;
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -696,6 +708,73 @@ function lifeLeftoverOk(rest: string): boolean {
   return cleaned === "" || cleaned === "予定";
 }
 
+function extractCommutePhrase(text: string): {
+  action: CommuteAction;
+  rest: string;
+} | null {
+  let bestIndex = -1;
+  let bestLength = 0;
+  let bestAction: CommuteAction | null = null;
+
+  const consider = (phrase: string, action: CommuteAction) => {
+    const index = text.indexOf(phrase);
+    if (index < 0) return;
+    if (
+      bestIndex < 0 ||
+      index < bestIndex ||
+      (index === bestIndex && phrase.length > bestLength)
+    ) {
+      bestIndex = index;
+      bestLength = phrase.length;
+      bestAction = action;
+    }
+  };
+
+  for (const phrase of CLOCK_IN_PHRASES) consider(phrase, "clock_in");
+  for (const phrase of CLOCK_OUT_PHRASES) consider(phrase, "clock_out");
+  if (bestAction === null || bestIndex < 0) return null;
+
+  return {
+    action: bestAction,
+    rest: text.slice(0, bestIndex) + text.slice(bestIndex + bestLength),
+  };
+}
+
+function tryParseCommute(
+  afterDest: string,
+  now: Date,
+): ParsedInboxCommute | null {
+  const matched = extractCommutePhrase(afterDest);
+  if (!matched) return null;
+
+  const timedSource =
+    matched.action === "clock_in"
+      ? forceMorningClocks(matched.rest)
+      : matched.rest;
+  const times = extractTimes(timedSource);
+  const dates = extractDates(times.rest, now);
+  const leftover = cleanTitle(dates.rest, "event");
+  if (leftover !== "予定") return null;
+
+  const hasStart = Boolean(times.startTime) && !times.hadUntilOnly;
+  const startTime = hasStart ? times.startTime! : hhmmFromNow(now);
+  const dateKey = dates.dateKey
+    ? times.startExtraDays
+      ? addDaysToKey(dates.dateKey, times.startExtraDays)
+      : dates.dateKey
+    : times.startExtraDays
+      ? addDaysToKey(jstDateKey(now), times.startExtraDays)
+      : jstDateKey(now);
+
+  return {
+    kind: "commute",
+    action: matched.action,
+    title: commuteTitle(matched.action),
+    dateKey,
+    startTime,
+  };
+}
+
 function tryParseLife(afterDest: string, now: Date): ParsedInboxLife | null {
   const matched = extractLifePhrase(afterDest);
   if (!matched) return null;
@@ -735,6 +814,8 @@ export function parseUtterance(
   const sleep = tryParseSleep(afterDest, now);
   if (sleep) return sleep;
   if (dest !== "task") {
+    const commute = tryParseCommute(afterDest, now);
+    if (commute) return commute;
     const life = tryParseLife(afterDest, now);
     if (life) return life;
   }
@@ -793,6 +874,9 @@ export function formatInboxWhen(parsed: ParsedInbox): string {
     const label = parsed.action === "bedtime" ? "就寝" : "起床";
     return `${label} ${parsed.dateKey} ${parsed.startTime}`;
   }
+  if (parsed.kind === "commute") {
+    return `${parsed.title} ${parsed.dateKey} ${parsed.startTime}`;
+  }
   if (parsed.kind === "life") {
     return `${parsed.dateKey} ${parsed.startTime}–${parsed.endTime}`;
   }
@@ -829,6 +913,12 @@ export function speakInboxSuccess(parsed: ParsedInbox): string {
     return parsed.action === "bedtime"
       ? `${clock}に就寝を記録しました`
       : `${clock}に起床を記録しました`;
+  }
+  if (parsed.kind === "commute") {
+    const clock = speakClockFromHhmm(parsed.startTime);
+    return parsed.action === "clock_in"
+      ? `${clock}に出勤を記録しました`
+      : `${clock}に帰宅を記録しました`;
   }
   const quoted = `「${parsed.title}」`;
   if (parsed.kind === "task") {
