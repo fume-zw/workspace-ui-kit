@@ -1,8 +1,10 @@
 import { requireInboxAuth } from "@/lib/inbox/auth";
 import { loadWakeForUser, type WakePlan } from "@/lib/inbox/wake";
+import { shortcutJson } from "@/lib/inbox/shortcut-http";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type WakeSuccess = { ok: true } & WakePlan;
 
@@ -11,25 +13,27 @@ type WakeFailure = {
   speak: string;
 };
 
-function json(body: WakeSuccess | WakeFailure, status: number) {
-  return Response.json(body, { status });
-}
-
 export async function GET(request: Request) {
   const auth = requireInboxAuth(request);
   if (!auth.ok) {
-    return json({ ok: false, speak: auth.speak }, auth.status);
+    return shortcutJson({ ok: false, speak: auth.speak } satisfies WakeFailure);
   }
 
   try {
     const supabase = createServiceRoleClient();
     const loaded = await loadWakeForUser(supabase, auth.userId);
     if (loaded.error || !loaded.data) {
-      return json({ ok: false, speak: "読み込めませんでした" }, 500);
+      return shortcutJson({
+        ok: false,
+        speak: "読み込めませんでした",
+      } satisfies WakeFailure);
     }
-    return json({ ok: true, ...loaded.data }, 200);
+    return shortcutJson({ ok: true, ...loaded.data } satisfies WakeSuccess);
   } catch (error) {
     console.error("[wake]", error);
-    return json({ ok: false, speak: "読み込めませんでした" }, 500);
+    return shortcutJson({
+      ok: false,
+      speak: "読み込めませんでした",
+    } satisfies WakeFailure);
   }
 }

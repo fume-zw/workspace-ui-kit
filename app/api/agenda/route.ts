@@ -1,8 +1,13 @@
-import { agendaDateKeyFromRequest, loadAgendaForUser } from "@/lib/inbox/agenda";
+import {
+  agendaDateKeyFromRequest,
+  loadAgendaForUser,
+} from "@/lib/inbox/agenda";
 import { requireInboxAuth } from "@/lib/inbox/auth";
+import { shortcutJson } from "@/lib/inbox/shortcut-http";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type AgendaSuccess = {
   ok: true;
@@ -16,14 +21,13 @@ type AgendaFailure = {
   speak: string;
 };
 
-function json(body: AgendaSuccess | AgendaFailure, status: number) {
-  return Response.json(body, { status });
-}
-
 export async function GET(request: Request) {
   const auth = requireInboxAuth(request);
   if (!auth.ok) {
-    return json({ ok: false, speak: auth.speak }, auth.status);
+    return shortcutJson({
+      ok: false,
+      speak: auth.speak,
+    } satisfies AgendaFailure);
   }
 
   const dateKey = agendaDateKeyFromRequest(new URL(request.url));
@@ -32,11 +36,17 @@ export async function GET(request: Request) {
     const supabase = createServiceRoleClient();
     const loaded = await loadAgendaForUser(supabase, auth.userId, dateKey);
     if (loaded.error || !loaded.data) {
-      return json({ ok: false, speak: "読み込めませんでした" }, 500);
+      return shortcutJson({
+        ok: false,
+        speak: "読み込めませんでした",
+      } satisfies AgendaFailure);
     }
-    return json({ ok: true, ...loaded.data }, 200);
+    return shortcutJson({ ok: true, ...loaded.data } satisfies AgendaSuccess);
   } catch (error) {
     console.error("[agenda]", error);
-    return json({ ok: false, speak: "読み込めませんでした" }, 500);
+    return shortcutJson({
+      ok: false,
+      speak: "読み込めませんでした",
+    } satisfies AgendaFailure);
   }
 }

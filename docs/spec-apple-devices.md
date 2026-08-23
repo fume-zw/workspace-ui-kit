@@ -106,7 +106,7 @@
 
 | ID  | 要件                                                                   | 優先                                  | 実現手段                                                                                  |
 | --- | ---------------------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
-| W-3 | 音声でタスクまたは時刻つき予定を追加する                               | **P0（先にやる）**                    | Siri ショートカット → `POST /api/inbox`                                                   |
+| W-3 | 音声でタスクまたは時刻つき予定を追加する                               | **P0（先にやる）**                    | Siri ショートカット → `GET /api/inbox?token=&text=`（POST も可）                          |
 | W-1 | 今日の予定を手首で確認する                                             | **P0（読み上げ）** / P1（カレンダー） | Siri「今日の予定」→ `GET /api/agenda`。純正カレンダーは ICS 後                            |
 | W-2 | 期限つき未完了タスクを期限日の予定として見る                           | P1                                    | 同じ ICS                                                                                  |
 | W-4 | 開始前・期限朝の通知                                                   | P1                                    | ICS の `VALARM`                                                                           |
@@ -121,11 +121,21 @@ PC のスケジュール機能は **すでに時刻を持てる**。音声は **
 
 音声追加（W-3）の操作:
 
-1. iPhone にショートカット「追加」を1つ置く（初回だけ。名前は変更可）。
+1. iPhone にショートカット「追加」を1つ置く（初回だけ。名前は変更可）。中身は **GET**（POST + JSON + Authorization は使わない）。
 2. Watch で「Hey Siri、追加」。
-3. 一文を話す。行き先を言うなら文の前後どちらでもよい。
+3. 「テキストを入力」で一文を話す。行き先を言うなら文の前後どちらでもよい。
 4. サーバーが予定かタスクかを分けて保存する。タスクならプロジェクトは見ない（常に未割当）。
 5. Watch に「予定に入れました」または「タスクに入れました」と返す。
+
+ショートカットの中身（iPhone で一度だけ作る / 既存の POST 版はこれに差し替える）:
+
+1. 「テキストを尋ねる」（プロンプトは「追加する内容」）
+2. 「URL の内容を取得」。方法は **GET**。URL は  
+   `https://task-workspace-psi.vercel.app/api/inbox?token=（INBOX_TOKEN）&text=（尋ねたテキスト）`  
+   ヘッダも JSON 本文も付けない。
+3. 「辞書」にして `speak` を読み上げる。
+
+Siri / Watch の「URL の内容を取得」は、POST・カスタムヘッダ・HTTP 4xx の空応答を **「ショートカットからネットワーク接続が切れました」** と出す。GET + クエリだけなら切らない。
 
 例:
 
@@ -155,9 +165,9 @@ PC のスケジュール機能は **すでに時刻を持てる**。音声は **
 
 | ID  | 要件                                                                                                                                                                                                                                                           |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| I-1 | `POST /api/inbox`。JSON `{ "text": "…" }`。成功時に `{ ok, kind: "task" \| "event", title, when, speak, id }` を返す                                                                                                                                           |
-| I-2 | Cookie は使わない。環境変数 `INBOX_TOKEN`（128bit 以上）を `Authorization: Bearer` で送る。書き込みは `SUPABASE_SERVICE_ROLE_KEY` + 固定 `INBOX_USER_ID`。middleware は `/api/inbox` `/api/agenda` `/api/wake` `/api/calendar` を公開。ICS 用の鍵とは別（R-2） |
-| I-3 | `text` は前後空白を除き 1〜200 文字。空なら 400                                                                                                                                                                                                                |
+| I-1 | **Watch 正は `GET /api/inbox?token=…&text=…`。** `POST`（JSON `{ "text" }` / form / 平文）も残す。成功時に `{ ok, kind: "task" \| "event", title, when, speak, id }` を返す。HTTP 状態は常に 200（Shortcuts が 4xx を通信切断と誤るため）。成否は `ok` / `speak` |
+| I-2 | Cookie は使わない。環境変数 `INBOX_TOKEN`（128bit 以上）。Watch はクエリ `token`。`Authorization: Bearer` と `X-Inbox-Token` も可。書き込みは `SUPABASE_SERVICE_ROLE_KEY` + 固定 `INBOX_USER_ID`。middleware は `/api/inbox` `/api/agenda` `/api/wake` `/api/calendar` を公開。ICS 用の鍵とは別（R-2） |
+| I-3 | `text` は前後空白を除き 1〜200 文字。空なら `{ ok: false, speak }`（HTTP は 200）                                                                                                                                                                               |
 | I-4 | 行き先は §4.1。明示があればそれを優先。無ければ開始時刻の有無で推定                                                                                                                                                                                            |
 | I-5 | タスクのとき: そのユーザーの `not_started` の **`status_id`**、`project_id = null`。期限は §4.2。取れなくても追加は成功                                                                                                                                        |
 | I-6 | イベントのとき: `event_label_id = null`。開始時刻があれば `allDay = false`（終了省略時は開始+1時間）。**時刻が無ければ `allDay = true`**（その日の終日）                                                                                                       |
@@ -251,7 +261,7 @@ Route Handler にする。分解ルールは単体テストする。
 
 ### 4.5 就寝アラーム（W-6）
 
-`GET /api/wake`。inbox と同じ `Authorization: Bearer INBOX_TOKEN`。既存のショートカット **「おやすみモード」** に足す。オートメーションは使わない。サーバーは時計を直接押せない。
+`GET /api/wake`。inbox と同じ `INBOX_TOKEN`（クエリ `token` または `Authorization: Bearer`）。既存のショートカット **「おやすみモード」** に足す。オートメーションは使わない。サーバーは時計を直接押せない。
 
 「追加」で言う `おやすみ`（睡眠の帯）とは別。こちらは勤務枠を見て時計のアラームを3本作る。生活・記録・定期の枠は見ない。
 
@@ -267,7 +277,7 @@ Route Handler にする。分解ルールは単体テストする。
 
 返すもの: `{ ok, pattern, patternLabel, skip, alarmCount, alarm1Hour, alarm1Minute, alarm2Hour, alarm2Minute, alarm3Hour, alarm3Minute, alarmName1, alarmName2, alarmName3, speak, shiftName, shiftStart, dateKey }`。
 
-ショートカット「おやすみモード」: URL を GET → 辞書化 → `skip` が false なら「勤務1」「勤務2」「勤務3」を3本作成 → `speak` を読む。オートメーションは使わない。
+ショートカット「おやすみモード」: URL を GET（`?token=` を付ける）→ 辞書化 → `skip` が false なら「勤務1」「勤務2」「勤務3」を3本作成 → `speak` を読む。オートメーションは使わない。
 
 ---
 
@@ -399,7 +409,7 @@ PC 4 ペインの見た目・トークン体系は変えない。
 
 | ID   | 不足                                                        | 確定                                                                                                                                                                                                          |
 | ---- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R-1  | inbox の認証（トークン置き場、ヘッダ、user_id、middleware） | 1人用。環境変数 `INBOX_TOKEN`（128bit 以上）。`Authorization: Bearer`。`/api/inbox` だけ middleware 公開。書き込みは service role + 固定 `INBOX_USER_ID`。現行 RLS の `auth.uid()` はショートカットに使えない |
+| R-1  | inbox の認証（トークン置き場、ヘッダ、user_id、middleware） | 1人用。環境変数 `INBOX_TOKEN`（128bit 以上）。Watch 正はクエリ `token`。`Authorization: Bearer` も可。`/api/inbox` は middleware 公開。書き込みは service role + 固定 `INBOX_USER_ID`。現行 RLS の `auth.uid()` はショートカットに使えない |
 | R-2  | inbox 鍵と ICS 鍵は同じか                                   | **別鍵**。inbox 再発行はショートカットだけ止める。ICS 再発行は購読だけ止める                                                                                                                                  |
 | R-3  | 期限なし未割当が `/mobile` に出ない                         | `/mobile` の **未割当リスト**。日付を勝手に「今日」にはしない                                                                                                                                                 |
 | R-4  | 「すぐ見える」                                              | Realtime は使わない。アプリを開き直す / フォアグラウンド復帰 / 再読み込みで再取得                                                                                                                             |

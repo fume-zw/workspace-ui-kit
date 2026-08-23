@@ -4,5 +4,37 @@
       "path": "/api/weekly-review",
       "schedule": "0 23 * * 0"
     }
+  ],
+  "headers": [
+    {
+      "source": "/api/inbox",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, no-cache, must-revalidate"
+        },
+        { "key": "Alt-Svc", "value": "clear" }
+      ]
+    },
+    {
+      "source": "/api/agenda",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, no-cache, must-revalidate"
+        },
+        { "key": "Alt-Svc", "value": "clear" }
+      ]
+    },
+    {
+      "source": "/api/wake",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, no-cache, must-revalidate"
+        },
+        { "key": "Alt-Svc", "value": "clear" }
+      ]
+    }
   ]
 }
