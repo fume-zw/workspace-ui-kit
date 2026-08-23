@@ -76,6 +76,39 @@ describe("requireInboxAuth", () => {
       speak: "認証に失敗しました",
     });
   });
+
+  it("says トークンがありません when nothing was sent", () => {
+    const request = new Request("https://example.com/api/inbox");
+    expect(requireInboxAuth(request)).toMatchObject({
+      ok: false,
+      speak: "トークンがありません",
+    });
+  });
+
+  it("accepts a query token even if a leftover Authorization header is wrong", () => {
+    const request = new Request(
+      `https://example.com/api/inbox?token=${encodeURIComponent(TOKEN)}`,
+      { headers: { Authorization: "Bearer leftover" } },
+    );
+    expect(requireInboxAuth(request)).toEqual({ ok: true, userId: USER_ID });
+  });
+
+  it("accepts Bearer prefix, wrapping parentheses, and env newlines", () => {
+    process.env.INBOX_TOKEN = `${TOKEN}\n`;
+    const request = new Request(
+      `https://example.com/api/inbox?token=${encodeURIComponent(`Bearer （${TOKEN}）`)}`,
+    );
+    expect(requireInboxAuth(request)).toEqual({ ok: true, userId: USER_ID });
+  });
+
+  it("accepts an unencoded + inside the token", () => {
+    const plusToken = "abc+def/ghi==";
+    process.env.INBOX_TOKEN = plusToken;
+    const request = new Request(
+      `https://example.com/api/inbox?token=${plusToken}&text=週報`,
+    );
+    expect(requireInboxAuth(request)).toEqual({ ok: true, userId: USER_ID });
+  });
 });
 
 describe("readInboxText", () => {
@@ -149,7 +182,7 @@ describe("GET /api/inbox", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { ok: boolean; speak: string };
     expect(body.ok).toBe(false);
-    expect(body.speak).toBeTruthy();
+    expect(body.speak).toBe("トークンがありません");
   });
 
   it("creates a task from GET query text and token", async () => {

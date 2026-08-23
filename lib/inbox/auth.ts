@@ -7,25 +7,76 @@ export function readBearer(request: Request): string | null {
   return match?.[1]?.trim() || null;
 }
 
+export function normalizeSecret(raw: string): string {
+  let value = raw.replace(/^\uFEFF/, "").replace(/[\u200B-\u200D\uFEFF]/g, "");
+  value = value.trim();
+  value = value.replace(/^Bearer\s+/i, "").trim();
+  value = value.replace(/^["'「『]([\s\S]*)["'」』]$/u, "$1").trim();
+  value = value.replace(/^[（(]([\s\S]*)[）)]$/u, "$1").trim();
+  return value;
+}
+
+/** `token=` を form デコードせず取る。`+` をスペースにしない。 */
+export function readRawQueryParam(url: URL, name: string): string | null {
+  const search = url.search.startsWith("?") ? url.search.slice(1) : url.search;
+  if (!search) return null;
+  for (const part of search.split("&")) {
+    const eq = part.indexOf("=");
+    const rawKey = eq === -1 ? part : part.slice(0, eq);
+    let key = rawKey;
+    try {
+      key = decodeURIComponent(rawKey.replace(/\+/g, " "));
+    } catch {
+      // keep rawKey
+    }
+    if (key !== name) continue;
+    const rawValue = eq === -1 ? "" : part.slice(eq + 1);
+    try {
+      return decodeURIComponent(rawValue);
+    } catch {
+      return rawValue;
+    }
+  }
+  return null;
+}
+
+function pushCandidate(into: string[], value: string | null | undefined) {
+  if (!value) return;
+  const trimmed = value.trim();
+  if (trimmed) into.push(trimmed);
+}
+
+export function collectProvidedTokens(request: Request): string[] {
+  const found: string[] = [];
+  const header = request.headers.get("authorization");
+  if (header) {
+    pushCandidate(found, header);
+    const match = header.match(/^Bearer\s+(.+)$/i);
+    pushCandidate(found, match?.[1] ?? null);
+  }
+  pushCandidate(found, request.headers.get("x-inbox-token"));
+
+  try {
+    const url = new URL(request.url);
+    pushCandidate(found, url.searchParams.get("token"));
+    pushCandidate(found, readRawQueryParam(url, "token"));
+  } catch {
+    // ignore invalid URL
+  }
+
+  return found;
+}
+
 /**
- * Watch のショートカットは Authorization ヘッダを落とすことがある。
- * Bearer・生ヘッダ・`X-Inbox-Token`・クエリ `token` の順で見る。
+ * Watch のショートカットは Authorization ヘッダを落とす / 壊すことがある。
+ * どれか1つでも合えば通す（古いヘッダがクエリを潰さない）。
  */
 export function readProvidedToken(request: Request): string | null {
   const bearer = readBearer(request);
   if (bearer) return bearer;
-
-  const rawAuth = request.headers.get("authorization")?.trim();
-  if (rawAuth) return rawAuth;
-
-  const headerToken = request.headers.get("x-inbox-token")?.trim();
-  if (headerToken) return headerToken;
-
-  try {
-    const token = new URL(request.url).searchParams.get("token")?.trim();
-    if (token) return token;
-  } catch {
-    return null;
+  for (const candidate of collectProvidedTokens(request)) {
+    const normalized = normalizeSecret(candidate);
+    if (normalized) return normalized;
   }
   return null;
 }
@@ -38,20 +89,34 @@ function tokensEqual(provided: string, expected: string): boolean {
 }
 
 export function secretsEqual(provided: string, expected: string): boolean {
-  return tokensEqual(provided, expected);
+  const normalizedExpected = normalizeSecret(expected);
+  if (!normalizedExpected) return false;
+  const variants = new Set<string>([
+    normalizeSecret(provided),
+    normalizeSecret(provided).replace(/ /g, "+"),
+    provided.trim(),
+  ]);
+  for (const variant of variants) {
+    if (!variant) continue;
+    if (tokensEqual(variant, normalizedExpected)) return true;
+  }
+  return false;
 }
 
 export function requireInboxAuth(
   request: Request,
 ): { ok: true; userId: string } | { ok: false; speak: string; status: number } {
-  const expectedToken = process.env.INBOX_TOKEN ?? "";
-  const userId = process.env.INBOX_USER_ID ?? "";
+  const expectedToken = normalizeSecret(process.env.INBOX_TOKEN ?? "");
+  const userId = normalizeSecret(process.env.INBOX_USER_ID ?? "");
   if (!expectedToken || !userId) {
     return { ok: false, speak: "設定が不足しています", status: 503 };
   }
 
-  const provided = readProvidedToken(request);
-  if (!provided || !tokensEqual(provided, expectedToken)) {
+  const provided = collectProvidedTokens(request);
+  if (provided.length === 0) {
+    return { ok: false, speak: "トークンがありません", status: 401 };
+  }
+  if (!provided.some((candidate) => secretsEqual(candidate, expectedToken))) {
     return { ok: false, speak: "認証に失敗しました", status: 401 };
   }
 
