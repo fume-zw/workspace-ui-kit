@@ -93,6 +93,14 @@ describe("requireInboxAuth", () => {
     expect(requireInboxAuth(request)).toEqual({ ok: true, userId: USER_ID });
   });
 
+  it("accepts leading and trailing ASCII spaces around the token", () => {
+    process.env.INBOX_TOKEN = ` ${TOKEN} `;
+    const request = new Request(
+      `https://example.com/api/inbox?token=${encodeURIComponent(` ${TOKEN} `)}`,
+    );
+    expect(requireInboxAuth(request)).toEqual({ ok: true, userId: USER_ID });
+  });
+
   it("accepts Bearer prefix, wrapping parentheses, and env newlines", () => {
     process.env.INBOX_TOKEN = `${TOKEN}\n`;
     const request = new Request(
