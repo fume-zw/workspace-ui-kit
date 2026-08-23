@@ -12,9 +12,11 @@ import {
   speakInboxSuccess,
   type ParsedInbox,
 } from "@/lib/inbox/parse-utterance";
+import { readInboxText, shortcutJson } from "@/lib/inbox/shortcut-http";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type InboxSuccess = {
   ok: true;
@@ -37,10 +39,6 @@ const RATE_MAX = 30;
 type DedupeEntry = { at: number; body: InboxSuccess };
 const dedupe = new Map<string, DedupeEntry>();
 const rateHits = new Map<string, number[]>();
-
-function json(body: InboxSuccess | InboxFailure, status: number) {
-  return Response.json(body, { status });
-}
 
 function pruneDedupe(now: number) {
   for (const [key, entry] of dedupe) {
@@ -76,23 +74,23 @@ function successPayload(
   };
 }
 
-export async function POST(request: Request) {
+async function handleInbox(request: Request): Promise<Response> {
   const auth = requireInboxAuth(request);
   if (!auth.ok) {
-    return json({ ok: false, speak: auth.speak }, auth.status);
+    return shortcutJson({
+      ok: false,
+      speak: auth.speak,
+    } satisfies InboxFailure);
   }
   const { userId } = auth;
 
-  let text = "";
-  try {
-    const body = (await request.json()) as { text?: unknown };
-    text = typeof body.text === "string" ? body.text.trim() : "";
-  } catch {
-    return json({ ok: false, speak: "内容を聞き取れませんでした" }, 400);
-  }
+  const text = await readInboxText(request);
 
   if (text.length < 1 || text.length > 200) {
-    return json({ ok: false, speak: "内容を聞き取れませんでした" }, 400);
+    return shortcutJson({
+      ok: false,
+      speak: "内容を聞き取れませんでした",
+    } satisfies InboxFailure);
   }
 
   const now = Date.now();
@@ -100,11 +98,11 @@ export async function POST(request: Request) {
   const dedupeKey = `${userId}:${normalizeUtterance(text)}`;
   const previous = dedupe.get(dedupeKey);
   if (previous && now - previous.at <= DEDUPE_MS) {
-    return json(previous.body, 200);
+    return shortcutJson(previous.body);
   }
 
   if (!allowRate(userId, now)) {
-    return json({ ok: false, speak: "あとで" }, 429);
+    return shortcutJson({ ok: false, speak: "あとで" } satisfies InboxFailure);
   }
 
   const parsed = parseUtterance(text, new Date());
@@ -120,16 +118,30 @@ export async function POST(request: Request) {
             ? await persistInboxLife(supabase, userId, parsed)
             : await persistInboxEvent(supabase, userId, parsed);
     if ("error" in saved) {
-      return json({ ok: false, speak: saved.speak }, saved.status);
+      return shortcutJson({
+        ok: false,
+        speak: saved.speak,
+      } satisfies InboxFailure);
     }
     const body = successPayload(parsed, saved.id, {
       speak: saved.speak,
       when: saved.when,
     });
     dedupe.set(dedupeKey, { at: now, body });
-    return json(body, 200);
+    return shortcutJson(body);
   } catch (error) {
     console.error("[inbox]", error);
-    return json({ ok: false, speak: "保存に失敗しました" }, 500);
+    return shortcutJson({
+      ok: false,
+      speak: "保存に失敗しました",
+    } satisfies InboxFailure);
   }
+}
+
+export async function GET(request: Request) {
+  return handleInbox(request);
+}
+
+export async function POST(request: Request) {
+  return handleInbox(request);
 }
