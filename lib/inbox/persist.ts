@@ -6,6 +6,7 @@ import {
   toJstIso,
 } from "@/lib/computed/schedule-datetime";
 import {
+  type ParsedInboxCommute,
   type ParsedInboxEvent,
   type ParsedInboxLife,
   type ParsedInboxSleep,
@@ -24,6 +25,8 @@ import {
   wakePatch,
   type SleepCandidate,
 } from "@/lib/inbox/sleep";
+import { COMMUTE_LABEL_META } from "@/lib/inbox/commute";
+import { type RecordLabelCode } from "@/lib/schema";
 import {
   insertLifeLabel,
   insertRecordLabel,
@@ -138,9 +141,10 @@ async function ensureRecordLabel(
   supabase: SupabaseClient,
   userId: string,
   name: string,
-  code: "sleep",
-  displayType: "span",
+  code: RecordLabelCode,
+  displayType: "span" | "marker",
   colorToken: string,
+  sortOrder: number,
 ): Promise<string | null> {
   const existing = await supabase
     .from("record_labels")
@@ -157,7 +161,7 @@ async function ensureRecordLabel(
     code,
     displayType,
     colorToken,
-    sortOrder: 1,
+    sortOrder,
   });
 
   return created.data?.id ?? null;
@@ -205,6 +209,7 @@ export async function persistInboxSleep(
     "sleep",
     "span",
     "schedule-indigo",
+    1,
   );
   const recent = await loadRecentSleepEntries(
     supabase,
@@ -272,6 +277,40 @@ export async function persistInboxSleep(
   };
 }
 
+export async function persistInboxCommute(
+  supabase: SupabaseClient,
+  userId: string,
+  parsed: ParsedInboxCommute,
+): Promise<PersistOk | PersistErr> {
+  const atIso = toJstIso(parsed.dateKey, parsed.startTime);
+  const meta = COMMUTE_LABEL_META[parsed.action];
+  const recordLabelId = await ensureRecordLabel(
+    supabase,
+    userId,
+    meta.name,
+    meta.code,
+    "marker",
+    meta.colorToken,
+    meta.sortOrder,
+  );
+
+  const result = await insertScheduleEntry(supabase, userId, {
+    kind: "record",
+    title: parsed.title,
+    startsAt: atIso,
+    endsAt: atIso,
+    allDay: false,
+    recordLabelId,
+    timeOverridden: false,
+  });
+
+  if (result.error || !result.data) {
+    return { error: true, speak: "保存に失敗しました", status: 500 };
+  }
+
+  return { id: result.data.id };
+}
+
 const LIFE_LABEL_COLORS: Record<string, string> = {
   お風呂: "schedule-teal",
   食事: "schedule-orange",
@@ -314,4 +353,3 @@ export async function persistInboxLife(
 
   return { id: result.data.id };
 }
-

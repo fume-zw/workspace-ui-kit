@@ -12,6 +12,7 @@ vi.mock("@/lib/inbox/persist", () => ({
   persistInboxTask: vi.fn(async () => ({ id: "task-1" })),
   persistInboxEvent: vi.fn(async () => ({ id: "event-1" })),
   persistInboxSleep: vi.fn(async () => ({ id: "sleep-1" })),
+  persistInboxCommute: vi.fn(async () => ({ id: "commute-1" })),
   persistInboxLife: vi.fn(async () => ({ id: "life-1" })),
 }));
 
