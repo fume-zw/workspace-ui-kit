@@ -244,40 +244,43 @@ async function generateInstancesForTemplate(
 /**
  * アクティブなテンプレートから先 N 週分のタスク行を冪等に補充する。
  * 既存の (template_id, instance_date) はスキップする。
+ *
+ * 呼び出し元（page.tsx 等）はテンプレート一覧を別途取得し直す必要がないよう、
+ * ここで取得した `templates`（フィルタ前の全件）を戻り値に含める。
  */
 export async function generateRecurringInstances(
   supabase: SupabaseClient,
   userId: string,
   fromDate = new Date(),
-): Promise<{ created: number; error: string | null }> {
+): Promise<{
+  created: number;
+  error: string | null;
+  templates: RecurringTaskTemplate[] | null;
+}> {
   const { data: templates, error: templateError } =
     await fetchRecurringTemplates(supabase);
 
   if (templateError || !templates) {
-    return { created: 0, error: templateError };
+    return { created: 0, error: templateError, templates: null };
   }
 
   const activeTemplates = templates.filter((template) => template.active);
   if (activeTemplates.length === 0) {
-    return { created: 0, error: null };
+    return { created: 0, error: null, templates };
   }
 
-  let created = 0;
+  // テンプレート同士は互いに独立しているため並列実行する
+  // （直列だとテンプレート数分の往復がそのままページ表示の待ち時間に乗っていた）。
+  const results = await Promise.all(
+    activeTemplates.map((template) =>
+      generateInstancesForTemplate(supabase, userId, template, fromDate),
+    ),
+  );
 
-  for (const template of activeTemplates) {
-    const result = await generateInstancesForTemplate(
-      supabase,
-      userId,
-      template,
-      fromDate,
-    );
-    if (result.error) {
-      return { created, error: result.error };
-    }
-    created += result.created;
-  }
+  const firstError = results.find((result) => result.error)?.error ?? null;
+  const created = results.reduce((sum, result) => sum + result.created, 0);
 
-  return { created, error: null };
+  return { created, error: firstError, templates };
 }
 
 /**
