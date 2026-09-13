@@ -87,5 +87,19 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(homeUrl);
   }
 
-  return supabaseResponse;
+  if (!user) {
+    return supabaseResponse;
+  }
+
+  // ここまでで認証済みと確認済みなので、後続の Server Component は
+  // このヘッダーを信頼して user id を取得すればよく、
+  // 同じリクエスト内で supabase.auth.getUser() を再度呼ぶ（＝Supabaseへの
+  // 往復をもう1回増やす）必要がない。
+  const forwardedHeaders = new Headers(request.headers);
+  forwardedHeaders.set("x-user-id", user.id);
+  const response = NextResponse.next({ request: { headers: forwardedHeaders } });
+  supabaseResponse.cookies.getAll().forEach((cookie) => {
+    response.cookies.set(cookie);
+  });
+  return response;
 }

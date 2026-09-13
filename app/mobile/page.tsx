@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 import { MobileWorkspace } from "@/components/mobile/MobileWorkspace";
 import { Button } from "@/components/ui/button";
@@ -27,12 +28,14 @@ export const metadata = {
 
 export default async function MobilePage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login?next=/mobile");
+  // middleware が認証確認済みで user id を x-user-id に転送している
+  // （lib/supabase/middleware.ts）。ここで supabase.auth.getUser() を
+  // 再度呼ぶとSupabaseへの往復がページ表示のたびにもう1回増えるため、
+  // ヘッダーの値をそのまま信頼する。
+  const userId = (await headers()).get("x-user-id");
+  if (!userId) redirect("/login?next=/mobile");
 
-  await generateRecurringInstances(supabase, user.id);
+  await generateRecurringInstances(supabase, userId);
 
   const [statusResult, projectResult, taskResult, scheduleResult] = await Promise.all([
     fetchTaskStatusOptions(supabase),

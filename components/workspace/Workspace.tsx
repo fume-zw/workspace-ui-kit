@@ -117,6 +117,7 @@ import { RecurringTaskTemplateHubPane } from "@/components/workspace/RecurringTa
 import { SubtaskPane } from "@/components/workspace/SubtaskPane";
 
 type WorkspaceProps = {
+  userId: string;
   statuses: TaskStatusOption[];
   defaultStatusId: string;
   initialProjects: Project[];
@@ -133,6 +134,7 @@ type WorkspaceProps = {
 };
 
 export function Workspace({
+  userId,
   statuses,
   defaultStatusId,
   initialProjects,
@@ -237,21 +239,12 @@ export function Workspace({
       const trimmed = name.trim();
       if (!trimmed) return;
 
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
       const nextSortOrder =
         projects.reduce((max, project) => Math.max(max, project.sortOrder), 0) + 1;
 
       const { data, error } = await insertProject(
         supabase,
-        user.id,
+        userId,
         trimmed,
         nextSortOrder,
       );
@@ -264,7 +257,7 @@ export function Workspace({
       setProjects((prev) => [...prev, data]);
       setSelectedProjectId(data.id);
     },
-    [projects, supabase],
+    [projects, supabase, userId],
   );
 
   const deleteProject = useCallback(
@@ -372,16 +365,7 @@ export function Workspace({
       const title = input.title.trim();
       if (!title) return;
 
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
-      const { data, error } = await insertTask(supabase, user.id, {
+      const { data, error } = await insertTask(supabase, userId, {
         title,
         statusId: input.statusId,
         projectId: input.projectId,
@@ -397,21 +381,12 @@ export function Workspace({
       setSelectedTaskId(data.id);
       setSelectedProjectId(input.projectId ?? UNASSIGNED_PROJECT_ID);
     },
-    [supabase],
+    [supabase, userId],
   );
 
   const addEvent = useCallback(
     async (input: NewEventInput) => {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
-      const { data, error } = await insertScheduleEntry(supabase, user.id, {
+      const { data, error } = await insertScheduleEntry(supabase, userId, {
         kind: "event",
         title: input.title,
         startsAt: input.startsAt,
@@ -431,7 +406,7 @@ export function Workspace({
       setSelectedScheduleEntryId(data.id);
       setView("schedule");
     },
-    [supabase],
+    [supabase, userId],
   );
 
   const selectScheduleEntry = useCallback((entryId: string) => {
@@ -442,16 +417,7 @@ export function Workspace({
 
   const copyScheduleEntryHandler = useCallback(
     async (input: NewScheduleCopyInput) => {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
-      const { data, error } = await insertScheduleEntry(supabase, user.id, {
+      const { data, error } = await insertScheduleEntry(supabase, userId, {
         kind: input.kind,
         title: input.title,
         startsAt: input.startsAt,
@@ -473,7 +439,7 @@ export function Workspace({
       setSelectedScheduleEntryId(data.id);
       setView("schedule");
     },
-    [supabase],
+    [supabase, userId],
   );
 
   const updateScheduleEntryHandler = useCallback(
@@ -532,18 +498,9 @@ export function Workspace({
 
   const addRecurringTask = useCallback(
     async (input: NewRecurringTaskInput) => {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
       const { data: template, error } = await insertRecurringTemplate(
         supabase,
-        user.id,
+        userId,
         input,
       );
       if (error || !template) {
@@ -551,7 +508,7 @@ export function Workspace({
         return;
       }
 
-      const genResult = await generateRecurringInstances(supabase, user.id);
+      const genResult = await generateRecurringInstances(supabase, userId);
       if (genResult.error) {
         setActionError(genResult.error);
         return;
@@ -563,7 +520,7 @@ export function Workspace({
       setSelectedTemplateId(null);
       setActionError(null);
     },
-    [refreshTasks, supabase],
+    [refreshTasks, supabase, userId],
   );
 
   const updateRecurringTemplateHandler = useCallback(
@@ -599,16 +556,7 @@ export function Workspace({
         prev.map((template) => (template.id === templateId ? data : template)),
       );
 
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
-      const genResult = await generateRecurringInstances(supabase, user.id);
+      const genResult = await generateRecurringInstances(supabase, userId);
       if (genResult.error) {
         setActionError(genResult.error);
         return;
@@ -617,25 +565,16 @@ export function Workspace({
       await refreshTasks();
       setActionError(null);
     },
-    [refreshTasks, supabase],
+    [refreshTasks, supabase, userId],
   );
 
   const applyRecurringTemplateToFuture = useCallback(
     async (templateId: string) => {
       setApplyingTemplate(true);
       try {
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
-        if (authError || !user) {
-          setActionError(authError?.message ?? "ログインセッションが切れました。");
-          return;
-        }
-
         const result = await regenerateFutureInstancesForTemplate(
           supabase,
-          user.id,
+          userId,
           templateId,
         );
         if (result.error) {
@@ -649,24 +588,15 @@ export function Workspace({
         setApplyingTemplate(false);
       }
     },
-    [refreshTasks, supabase],
+    [refreshTasks, supabase, userId],
   );
 
   const addShiftLabel = useCallback(
     async (value: ShiftLabelFormValue) => {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
       const nextSortOrder =
         shiftLabels.reduce((max, label) => Math.max(max, label.sortOrder), 0) + 1;
 
-      const { data, error } = await insertShiftLabel(supabase, user.id, {
+      const { data, error } = await insertShiftLabel(supabase, userId, {
         name: value.name,
         displayType: value.displayType,
         defaultStartTime: value.defaultStartTime,
@@ -685,7 +615,7 @@ export function Workspace({
         [...prev, data].sort((a, b) => a.sortOrder - b.sortOrder),
       );
     },
-    [shiftLabels, supabase],
+    [shiftLabels, supabase, userId],
   );
 
   const updateShiftLabelHandler = useCallback(
@@ -727,20 +657,11 @@ export function Workspace({
 
   const addActivityLabel = useCallback(
     async (value: ShiftLabelFormValue) => {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
       const nextSortOrder =
         activityLabels.reduce((max, label) => Math.max(max, label.sortOrder), 0) +
         1;
 
-      const { data, error } = await insertActivityLabel(supabase, user.id, {
+      const { data, error } = await insertActivityLabel(supabase, userId, {
         name: value.name,
         displayType: value.displayType,
         defaultStartTime: value.defaultStartTime,
@@ -759,7 +680,7 @@ export function Workspace({
         [...prev, data].sort((a, b) => a.sortOrder - b.sortOrder),
       );
     },
-    [activityLabels, supabase],
+    [activityLabels, supabase, userId],
   );
 
   const updateActivityLabelHandler = useCallback(
@@ -801,19 +722,10 @@ export function Workspace({
 
   const addEventLabel = useCallback(
     async (value: EventLabelFormValue) => {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
       const nextSortOrder =
         eventLabels.reduce((max, label) => Math.max(max, label.sortOrder), 0) + 1;
 
-      const { data, error } = await insertEventLabel(supabase, user.id, {
+      const { data, error } = await insertEventLabel(supabase, userId, {
         name: value.name,
         colorToken: value.colorToken,
         sortOrder: nextSortOrder,
@@ -828,7 +740,7 @@ export function Workspace({
         [...prev, data].sort((a, b) => a.sortOrder - b.sortOrder),
       );
     },
-    [eventLabels, supabase],
+    [eventLabels, supabase, userId],
   );
 
   const updateEventLabelHandler = useCallback(
@@ -866,16 +778,7 @@ export function Workspace({
 
   const addLife = useCallback(
     async (input: NewEventInput) => {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
-      const { data, error } = await insertScheduleEntry(supabase, user.id, {
+      const { data, error } = await insertScheduleEntry(supabase, userId, {
         kind: "life",
         title: input.title,
         startsAt: input.startsAt,
@@ -895,7 +798,7 @@ export function Workspace({
       setSelectedScheduleEntryId(data.id);
       setView("schedule");
     },
-    [supabase],
+    [supabase, userId],
   );
 
   const addRecord = useCallback(
@@ -914,16 +817,7 @@ export function Workspace({
             : null;
       if (!range) return;
 
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
-      const { data, error } = await insertScheduleEntry(supabase, user.id, {
+      const { data, error } = await insertScheduleEntry(supabase, userId, {
         kind: "record",
         title: label.name,
         startsAt: range.startsAt,
@@ -943,24 +837,15 @@ export function Workspace({
       setSelectedScheduleEntryId(data.id);
       setView("schedule");
     },
-    [recordLabels, supabase],
+    [recordLabels, supabase, userId],
   );
 
   const addLifeLabel = useCallback(
     async (value: EventLabelFormValue) => {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
       const nextSortOrder =
         lifeLabels.reduce((max, label) => Math.max(max, label.sortOrder), 0) + 1;
 
-      const { data, error } = await insertLifeLabel(supabase, user.id, {
+      const { data, error } = await insertLifeLabel(supabase, userId, {
         name: value.name,
         colorToken: value.colorToken,
         sortOrder: nextSortOrder,
@@ -975,7 +860,7 @@ export function Workspace({
         [...prev, data].sort((a, b) => a.sortOrder - b.sortOrder),
       );
     },
-    [lifeLabels, supabase],
+    [lifeLabels, supabase, userId],
   );
 
   const updateLifeLabelHandler = useCallback(
@@ -1044,18 +929,9 @@ export function Workspace({
       const label = shiftLabels.find((item) => item.id === labelId);
       if (!label || dateKeys.length === 0) return;
 
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
       const { data, error } = await insertShiftsBulk(
         supabase,
-        user.id,
+        userId,
         dateKeys,
         label,
       );
@@ -1070,7 +946,7 @@ export function Workspace({
       );
       setView("schedule");
     },
-    [shiftLabels, supabase],
+    [shiftLabels, supabase, userId],
   );
 
   const addActivitiesBulk = useCallback(
@@ -1078,18 +954,9 @@ export function Workspace({
       const label = activityLabels.find((item) => item.id === labelId);
       if (!label || dateKeys.length === 0) return;
 
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
       const { data, error } = await insertActivitiesBulk(
         supabase,
-        user.id,
+        userId,
         dateKeys,
         label,
       );
@@ -1104,7 +971,7 @@ export function Workspace({
       );
       setView("schedule");
     },
-    [activityLabels, supabase],
+    [activityLabels, supabase, userId],
   );
 
   const deleteTask = useCallback(
@@ -1274,15 +1141,6 @@ export function Workspace({
       const trimmed = title.trim();
       if (!trimmed) return;
 
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-      if (authError || !user) {
-        setActionError(authError?.message ?? "ログインセッションが切れました。");
-        return;
-      }
-
       const taskSubtasks = subtasks.filter(
         (subtask) => subtask.taskId === activeTaskId,
       );
@@ -1294,7 +1152,7 @@ export function Workspace({
 
       const { data, error } = await insertSubtask(
         supabase,
-        user.id,
+        userId,
         activeTaskId,
         trimmed,
         nextSortOrder,
@@ -1307,7 +1165,7 @@ export function Workspace({
       setActionError(null);
       setSubtasks((prev) => [...prev, data]);
     },
-    [activeTaskId, subtasks, supabase],
+    [activeTaskId, subtasks, supabase, userId],
   );
 
   const searchProjectGroups = useMemo(

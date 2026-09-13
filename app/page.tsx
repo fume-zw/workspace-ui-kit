@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 import { Workspace } from "@/components/workspace/Workspace";
 import workspaceData from "@/data/workspace.json";
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { workspaceSchema } from "@/lib/schema";
-import { generateRecurringInstances, fetchRecurringTemplates } from "@/lib/recurring-db";
+import { generateRecurringInstances } from "@/lib/recurring-db";
 import { fetchScheduleData } from "@/lib/schedule-db";
 import {
   fetchWorkspaceData,
@@ -22,10 +23,12 @@ import {
 
 export default async function Page() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // middleware が認証確認済みで user id を x-user-id に転送している
+  // （lib/supabase/middleware.ts）。ここで supabase.auth.getUser() を
+  // 再度呼ぶとSupabaseへの往復がページ表示のたびにもう1回増えるため、
+  // ヘッダーの値をそのまま信頼する。
+  const userId = (await headers()).get("x-user-id");
+  if (!userId) redirect("/login");
 
   const wsResult = workspaceSchema.safeParse(workspaceData);
   if (!wsResult.success) {
@@ -34,8 +37,8 @@ export default async function Page() {
     );
   }
 
-  const genResult = await generateRecurringInstances(supabase, user.id);
-  if (genResult.error) {
+  const genResult = await generateRecurringInstances(supabase, userId);
+  if (genResult.error || !genResult.templates) {
     return (
       <main className="flex min-h-full flex-1 items-center justify-center px-4 py-10">
         <Card className="w-full max-w-lg">
@@ -46,29 +49,24 @@ export default async function Page() {
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-destructive">
-            {genResult.error}
+            {genResult.error ?? "不明なエラー"}
           </CardContent>
         </Card>
       </main>
     );
   }
+  const recurringTemplates = genResult.templates;
 
-  const [workspaceResult, scheduleResult, templatesResult] = await Promise.all([
+  const [workspaceResult, scheduleResult] = await Promise.all([
     fetchWorkspaceData(supabase),
     fetchScheduleData(supabase),
-    fetchRecurringTemplates(supabase),
   ]);
 
-  const error =
-    workspaceResult.error ??
-    scheduleResult.error ??
-    templatesResult.error ??
-    null;
+  const error = workspaceResult.error ?? scheduleResult.error ?? null;
   const data = workspaceResult.data;
   const scheduleData = scheduleResult.data;
-  const recurringTemplates = templatesResult.data;
 
-  if (error || !data || !scheduleData || !recurringTemplates) {
+  if (error || !data || !scheduleData) {
     return (
       <main className="flex min-h-full flex-1 items-center justify-center px-4 py-10">
         <Card className="w-full max-w-lg">
@@ -103,6 +101,7 @@ export default async function Page() {
 
   return (
     <Workspace
+      userId={userId}
       statuses={data.statuses}
       defaultStatusId={defaultStatusId}
       initialProjects={data.projects}
