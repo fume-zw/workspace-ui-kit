@@ -365,46 +365,54 @@ export function Workspace({
       const title = input.title.trim();
       if (!title) return;
 
-      const { data, error } = await insertTask(supabase, userId, {
-        title,
-        statusId: input.statusId,
-        projectId: input.projectId,
-        dueDate: input.dueDate,
-      });
-      if (error || !data) {
-        setActionError(error ?? "タスクの追加に失敗しました。");
-        return;
-      }
+      try {
+        const { data, error } = await insertTask(supabase, userId, {
+          title,
+          statusId: input.statusId,
+          projectId: input.projectId,
+          dueDate: input.dueDate,
+        });
+        if (error || !data) {
+          setActionError(error ?? "タスクの追加に失敗しました。");
+          return;
+        }
 
-      setActionError(null);
-      setTasks((prev) => [...prev, data]);
-      setSelectedTaskId(data.id);
-      setSelectedProjectId(input.projectId ?? UNASSIGNED_PROJECT_ID);
+        setActionError(null);
+        setTasks((prev) => [...prev, data]);
+        setSelectedTaskId(data.id);
+        setSelectedProjectId(input.projectId ?? UNASSIGNED_PROJECT_ID);
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "タスクの追加に失敗しました。");
+      }
     },
     [supabase, userId],
   );
 
   const addEvent = useCallback(
     async (input: NewEventInput) => {
-      const { data, error } = await insertScheduleEntry(supabase, userId, {
-        kind: "event",
-        title: input.title,
-        startsAt: input.startsAt,
-        endsAt: input.endsAt,
-        allDay: input.allDay,
-        eventLabelId: input.eventLabelId,
-      });
-      if (error || !data) {
-        setActionError(error ?? "イベントの追加に失敗しました。");
-        return;
-      }
+      try {
+        const { data, error } = await insertScheduleEntry(supabase, userId, {
+          kind: "event",
+          title: input.title,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+          allDay: input.allDay,
+          eventLabelId: input.eventLabelId,
+        });
+        if (error || !data) {
+          setActionError(error ?? "イベントの追加に失敗しました。");
+          return;
+        }
 
-      setActionError(null);
-      setScheduleEntries((prev) =>
-        [...prev, data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-      );
-      setSelectedScheduleEntryId(data.id);
-      setView("schedule");
+        setActionError(null);
+        setScheduleEntries((prev) =>
+          [...prev, data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        );
+        setSelectedScheduleEntryId(data.id);
+        setView("schedule");
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "イベントの追加に失敗しました。");
+      }
     },
     [supabase, userId],
   );
@@ -498,27 +506,31 @@ export function Workspace({
 
   const addRecurringTask = useCallback(
     async (input: NewRecurringTaskInput) => {
-      const { data: template, error } = await insertRecurringTemplate(
-        supabase,
-        userId,
-        input,
-      );
-      if (error || !template) {
-        setActionError(error ?? "定期タスクの追加に失敗しました。");
-        return;
-      }
+      try {
+        const { data: template, error } = await insertRecurringTemplate(
+          supabase,
+          userId,
+          input,
+        );
+        if (error || !template) {
+          setActionError(error ?? "定期タスクの追加に失敗しました。");
+          return;
+        }
 
-      const genResult = await generateRecurringInstances(supabase, userId);
-      if (genResult.error) {
-        setActionError(genResult.error);
-        return;
-      }
+        const genResult = await generateRecurringInstances(supabase, userId);
+        if (genResult.error) {
+          setActionError(genResult.error);
+          return;
+        }
 
-      await refreshTasks();
-      setRecurringTemplates((prev) => [...prev, template]);
-      setSelectedProjectId(RECURRING_PROJECT_ID);
-      setSelectedTemplateId(null);
-      setActionError(null);
+        await refreshTasks();
+        setRecurringTemplates((prev) => [...prev, template]);
+        setSelectedProjectId(RECURRING_PROJECT_ID);
+        setSelectedTemplateId(null);
+        setActionError(null);
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "定期タスクの追加に失敗しました。");
+      }
     },
     [refreshTasks, supabase, userId],
   );
@@ -778,25 +790,29 @@ export function Workspace({
 
   const addLife = useCallback(
     async (input: NewEventInput) => {
-      const { data, error } = await insertScheduleEntry(supabase, userId, {
-        kind: "life",
-        title: input.title,
-        startsAt: input.startsAt,
-        endsAt: input.endsAt,
-        allDay: input.allDay,
-        lifeLabelId: input.eventLabelId,
-      });
-      if (error || !data) {
-        setActionError(error ?? "生活の追加に失敗しました。");
-        return;
-      }
+      try {
+        const { data, error } = await insertScheduleEntry(supabase, userId, {
+          kind: "life",
+          title: input.title,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+          allDay: input.allDay,
+          lifeLabelId: input.eventLabelId,
+        });
+        if (error || !data) {
+          setActionError(error ?? "生活の追加に失敗しました。");
+          return;
+        }
 
-      setActionError(null);
-      setScheduleEntries((prev) =>
-        [...prev, data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-      );
-      setSelectedScheduleEntryId(data.id);
-      setView("schedule");
+        setActionError(null);
+        setScheduleEntries((prev) =>
+          [...prev, data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        );
+        setSelectedScheduleEntryId(data.id);
+        setView("schedule");
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "生活の追加に失敗しました。");
+      }
     },
     [supabase, userId],
   );
@@ -817,25 +833,29 @@ export function Workspace({
             : null;
       if (!range) return;
 
-      const { data, error } = await insertScheduleEntry(supabase, userId, {
-        kind: "record",
-        title: label.name,
-        startsAt: range.startsAt,
-        endsAt: range.endsAt,
-        allDay: false,
-        recordLabelId: label.id,
-      });
-      if (error || !data) {
-        setActionError(error ?? "記録の追加に失敗しました。");
-        return;
-      }
+      try {
+        const { data, error } = await insertScheduleEntry(supabase, userId, {
+          kind: "record",
+          title: label.name,
+          startsAt: range.startsAt,
+          endsAt: range.endsAt,
+          allDay: false,
+          recordLabelId: label.id,
+        });
+        if (error || !data) {
+          setActionError(error ?? "記録の追加に失敗しました。");
+          return;
+        }
 
-      setActionError(null);
-      setScheduleEntries((prev) =>
-        [...prev, data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-      );
-      setSelectedScheduleEntryId(data.id);
-      setView("schedule");
+        setActionError(null);
+        setScheduleEntries((prev) =>
+          [...prev, data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        );
+        setSelectedScheduleEntryId(data.id);
+        setView("schedule");
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "記録の追加に失敗しました。");
+      }
     },
     [recordLabels, supabase, userId],
   );
@@ -929,22 +949,26 @@ export function Workspace({
       const label = shiftLabels.find((item) => item.id === labelId);
       if (!label || dateKeys.length === 0) return;
 
-      const { data, error } = await insertShiftsBulk(
-        supabase,
-        userId,
-        dateKeys,
-        label,
-      );
-      if (error || !data) {
-        setActionError(error ?? "勤務予定の追加に失敗しました。");
-        return;
-      }
+      try {
+        const { data, error } = await insertShiftsBulk(
+          supabase,
+          userId,
+          dateKeys,
+          label,
+        );
+        if (error || !data) {
+          setActionError(error ?? "勤務予定の追加に失敗しました。");
+          return;
+        }
 
-      setActionError(null);
-      setScheduleEntries((prev) =>
-        [...prev, ...data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-      );
-      setView("schedule");
+        setActionError(null);
+        setScheduleEntries((prev) =>
+          [...prev, ...data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        );
+        setView("schedule");
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "勤務予定の追加に失敗しました。");
+      }
     },
     [shiftLabels, supabase, userId],
   );
@@ -954,22 +978,26 @@ export function Workspace({
       const label = activityLabels.find((item) => item.id === labelId);
       if (!label || dateKeys.length === 0) return;
 
-      const { data, error } = await insertActivitiesBulk(
-        supabase,
-        userId,
-        dateKeys,
-        label,
-      );
-      if (error || !data) {
-        setActionError(error ?? "定期スケジュールの追加に失敗しました。");
-        return;
-      }
+      try {
+        const { data, error } = await insertActivitiesBulk(
+          supabase,
+          userId,
+          dateKeys,
+          label,
+        );
+        if (error || !data) {
+          setActionError(error ?? "定期スケジュールの追加に失敗しました。");
+          return;
+        }
 
-      setActionError(null);
-      setScheduleEntries((prev) =>
-        [...prev, ...data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-      );
-      setView("schedule");
+        setActionError(null);
+        setScheduleEntries((prev) =>
+          [...prev, ...data].sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        );
+        setView("schedule");
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "定期スケジュールの追加に失敗しました。");
+      }
     },
     [activityLabels, supabase, userId],
   );
